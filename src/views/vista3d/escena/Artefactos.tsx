@@ -79,7 +79,7 @@ function Artefacto({ u }: { u: Ubicacion }) {
       </mesh>
       </Select>
       {etiquetas && op === 1 && (
-        <Etiqueta position={[0, h / 2 + 0.12, 0]} className="v3d-etq">
+        <Etiqueta position={[0, h / 2 + 0.12, 0]} className={"v3d-etq" + (on ? " on" : "")}>
           {a.nombre} · {on ? `${fmt(a.potencia_w, 0)} W` : enc ? "sin tensión" : "apagado"}
         </Etiqueta>
       )}
