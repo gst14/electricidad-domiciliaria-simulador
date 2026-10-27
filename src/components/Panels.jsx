@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { fmt, hms, statusOf, validate } from "../lib/sim";
+import { fmt, hms, statusOf, validate } from "../domain/simulacion/sim.js";
 
 const SPEEDS = [1, 10, 60, 300];
 

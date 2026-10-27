@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { CATALOGO, fmt, heatRate, hms, izOf, loadA } from "../lib/sim";
+import { CATALOGO, etaDisparo, fmt, hms, izOf, loadA } from "../domain/simulacion/sim.js";
 
 const LEAKS = [[0, "Sana"], [15, "Humedad 15 mA"], [60, "Falla 60 mA"]];
 
 export default function CircuitCard({ cfg, rt, k, ci, actions }) {
   const [pick, setPick] = useState(0);
   const s = rt.c[k.id], on = rt.tg.on && rt.id.on && s.on;
-  const iz = izOf(k.seccion_mm2), scale = Math.max(k.amperes, iz, s.I) * 1.25, r = heatRate(s.I, k.amperes);
-  const eta = s.tripped ? "Disparado" : r > 0 ? `Dispara en ~${hms((1 - s.heat) / r)} simulado` : s.heat > 0.01 ? "Enfriándose" : "Sin sobrecarga";
+  const iz = izOf(k.seccion_mm2), scale = Math.max(k.amperes, iz, s.I) * 1.25, t = etaDisparo(s, s.I, k.amperes);
+  const eta = s.tripped ? "Disparado" : t !== null ? `Dispara en ~${hms(t)} simulado` : s.heat > 0.01 ? "Enfriándose" : "Sin sobrecarga";
   return (
     <article className={"card" + (s.tripped ? " down" : "")}>
       <div className="chead">

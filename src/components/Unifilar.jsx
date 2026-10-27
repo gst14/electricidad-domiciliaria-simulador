@@ -1,4 +1,4 @@
-import { fmt } from "../lib/sim";
+import { fmt } from "../domain/simulacion/sim.js";
 
 function T({ x, y, t, a = "start", c = "var(--ink)", w = 400, s = 12 }) {
   return <text x={x} y={y} textAnchor={a} fill={c} fontFamily="IBM Plex Mono, monospace" fontSize={s} fontWeight={w}>{t}</text>;

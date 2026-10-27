@@ -127,3 +127,6 @@ export function validate(cfg){
   const maxI=cfg.circuitos.reduce((s,k)=>s+k.cargas.reduce((a,b)=>a+b.potencia_w/(b.fp||1),0),0)/cfg.tension_v;
   return {checks:out,gr,maxI};
 }
+
+/* Segundos simulados hasta el disparo térmico con la corriente actual; null si no hay sobrecarga. */
+export function etaDisparo(b,I,In){const r=heatRate(I,In);return b.on&&r>0?(1-b.heat)/r:null}
