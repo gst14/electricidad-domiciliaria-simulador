@@ -1,3 +1,4 @@
+import { Select } from "@react-three/postprocessing";
 import { useMemo } from "react";
 import { Vector3 } from "three";
 import { fmt } from "../../../domain/simulacion";
@@ -60,6 +61,7 @@ function Artefacto({ u }: { u: Ubicacion }) {
     return `${on ? 1 : 0}|${a?.encendida ? 1 : 0}|${opacidadSeleccion(s.ui3d.seleccion, u.k.id)}|${s.ui3d.soloSeleccion ? 1 : 0}`;
   });
   const [on, enc, op, solo] = estado.split("|").map(Number);
+  const resaltado = useSimStore((s) => s.ui3d.seleccion?.circuitoId === u.k.id);
   const a = u.k.cargas[u.ai];
   const rotY = Math.atan2(u.normal[0], u.normal[2]);
   const [w, h, d] = u.forma.tam;
@@ -67,6 +69,7 @@ function Artefacto({ u }: { u: Ubicacion }) {
   if (solo && op < 1) return null;
   return (
     <group position={u.posicion} rotation-y={rotY}>
+      <Select enabled={op === 1 && resaltado}>
       <mesh castShadow receiveShadow name={`artefacto-${u.k.id}-${u.ai}`} userData={{ seleccion: sel }}
         onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: sel, pestana: "circuitos" }); }}
         {...eventosHover(sel)}>
@@ -74,6 +77,7 @@ function Artefacto({ u }: { u: Ubicacion }) {
         <meshStandardMaterial color={paleta.module} roughness={0.55} metalness={0.1} transparent opacity={op}
           emissive={colores[u.k.id]} emissiveIntensity={on ? 0.35 : 0} />
       </mesh>
+      </Select>
       {etiquetas && op === 1 && (
         <Etiqueta position={[0, h / 2 + 0.12, 0]} className="v3d-etq">
           {a.nombre} · {on ? `${fmt(a.potencia_w, 0)} W` : enc ? "sin tensión" : "apagado"}

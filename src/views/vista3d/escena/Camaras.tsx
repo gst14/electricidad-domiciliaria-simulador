@@ -1,4 +1,5 @@
 import { CameraControls } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
 import type { Layout3D } from "../../../domain/layout3d/tipos";
@@ -8,9 +9,10 @@ import { useEscena } from "../contexto";
 
 type Pose = [number, number, number, number, number, number]; // posición + objetivo
 
-export function poseDe(c: UI3D["camara"], L: Layout3D): Pose {
+/* `aspecto` (ancho/alto del canvas) aleja la cámara en pantallas angostas para que entre toda la casa. */
+export function poseDe(c: UI3D["camara"], L: Layout3D, aspecto = 1.5): Pose {
   const W = Math.max(...L.ambientes.map((a) => a.x + a.ancho)), Lz = Math.max(...L.ambientes.map((a) => a.z + a.largo));
-  const D = Math.hypot(W, Lz), cx = W / 2, cz = Lz / 2;
+  const D = Math.hypot(W, Lz) * Math.max(1, 1.3 / (aspecto > 0.2 ? aspecto : 1.5)), cx = W / 2, cz = Lz / 2;
   switch (c.preset) {
     case "planta": return [cx, D * 1.25, cz + 0.01, cx, 0, cz];
     case "tablero": { const [x, y, z] = L.tablero.posicion; return [x, y + 0.05, z + 0.85, x, y, z]; }
@@ -29,13 +31,16 @@ export default function Camaras({ layout }: { layout: Layout3D }) {
   const pedido = useSimStore((s) => s.ui3d.camara);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+  const aspecto = useThree((s) => s.size.width / Math.max(1, s.size.height));
+  const aspectoRef = useRef(aspecto);
+  aspectoRef.current = aspecto;
 
   // Al montar: vuelve a la pose guardada (si se cambió de vista) o a la isométrica.
   useEffect(() => {
     const cc = ref.current;
     if (!cc) return;
     const guardada = simStore.getState().ui3d.pose;
-    cc.setLookAt(...((guardada as Pose | null) ?? poseDe({ preset: "iso", n: 0 }, layoutRef.current)), false);
+    cc.setLookAt(...((guardada as Pose | null) ?? poseDe({ preset: "iso", n: 0 }, layoutRef.current, aspectoRef.current)), false);
     return () => {
       const p = cc.getPosition(new Vector3()), t = cc.getTarget(new Vector3());
       simStore.getState().actions.setUi3d({ pose: [...p.toArray(), ...t.toArray()] });
@@ -45,7 +50,7 @@ export default function Camaras({ layout }: { layout: Layout3D }) {
   // Cada pedido de cámara (n cambia) mueve la vista; editar parámetros no la toca.
   useEffect(() => {
     if (pedido.n === 0) return;
-    ref.current?.setLookAt(...poseDe(pedido, layoutRef.current), !reducido);
+    ref.current?.setLookAt(...poseDe(pedido, layoutRef.current, aspectoRef.current), !reducido);
   }, [pedido, reducido]);
 
   return <CameraControls ref={ref} makeDefault minDistance={0.3} maxDistance={60} maxPolarAngle={Math.PI * 0.495} smoothTime={reducido ? 0 : 0.35} />;

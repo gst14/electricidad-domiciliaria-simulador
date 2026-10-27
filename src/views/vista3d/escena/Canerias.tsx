@@ -1,11 +1,12 @@
 import type { ThreeEvent } from "@react-three/fiber";
+import { Select } from "@react-three/postprocessing";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { Color } from "three";
 import type { Mesh, MeshStandardMaterial } from "three";
 import type { Layout3D, Vec3 } from "../../../domain/layout3d/tipos";
 import type { Seleccion } from "../../../store/simStore";
-import { simStore } from "../../../store/simStore";
+import { simStore, useSimStore } from "../../../store/simStore";
 import { useEscena } from "../contexto";
 import { texturaGuiones, texturaRayado, tubosCircuito } from "../geometria";
 import { colorNivel, estadoVisualCircuito, intensidadPulso } from "../mapeoVisual";
@@ -78,15 +79,18 @@ function CanoCircuito({ circuitoId, firma, puntos }: { circuitoId: string; firma
     if (e.izExcedida && !reducido) rayas.offset.x -= dt * 0.6;
   });
 
+  const resaltado = useSimStore((s) => s.ui3d.seleccion?.circuitoId === circuitoId);
   const sel: Seleccion = { tipo: "circuito", circuitoId };
   if (!geo || !geoHalo) return null;
   return (
     <group>
+      <Select enabled={resaltado}>
       <mesh ref={cano} geometry={geo} castShadow name={"cano-" + circuitoId} userData={{ seleccion: sel }}
         onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: sel, pestana: "circuitos" }); }}
         {...eventosHover(sel)}>
         <meshStandardMaterial color={colores[circuitoId]} roughness={0.5} emissive={COLOR_FLUJO} emissiveMap={flujo} emissiveIntensity={0} transparent />
       </mesh>
+      </Select>
       <mesh ref={halo} geometry={geoHalo} visible={false} raycast={() => null} renderOrder={3}>
         <meshStandardMaterial color={paleta.trip} emissive={paleta.trip} emissiveIntensity={0.6} alphaMap={rayas} transparent depthWrite={false} />
       </mesh>

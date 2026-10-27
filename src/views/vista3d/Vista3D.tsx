@@ -1,7 +1,8 @@
 import { Bvh, PerformanceMonitor } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, Outline, Selection } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Color } from "three";
 import { selectLayout3d, simStore, useSimStore } from "../../store/simStore";
 import { coloresCircuitos, usePaleta } from "./colores";
 import { EscenaCtx, useEscena } from "./contexto";
@@ -13,6 +14,9 @@ import Casa from "./escena/Casa";
 import Fallas from "./escena/Fallas";
 import Luminarias from "./escena/Luminarias";
 import Tablero from "./escena/Tablero";
+import Tooltip from "./escena/Tooltip";
+import ControlesSim from "./ControlesSim";
+import PanelParametros from "./panel/PanelParametros";
 import { hayAnimacion } from "./mapeoVisual";
 import { useReducido } from "./useReducido";
 
@@ -35,8 +39,9 @@ function Escena({ efectos }: { efectos: boolean }) {
   const layout = useSimStore(selectLayout3d);
   const capas = useSimStore((s) => s.ui3d.capas);
   const W = Math.max(...layout.ambientes.map((a) => a.x + a.ancho)), L = Math.max(...layout.ambientes.map((a) => a.z + a.largo));
+  const { paleta } = useEscena();
   return (
-    <>
+    <Selection>
       <ambientLight intensity={0.55} />
       <hemisphereLight args={["#ffffff", "#8a8f8c", 0.6]} />
       <directionalLight position={[W / 2 + 5, 14, L + 7]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
@@ -52,14 +57,16 @@ function Escena({ efectos }: { efectos: boolean }) {
         {capas.artefactos && <Artefactos layout={layout} />}
         <Fallas layout={layout} />
       </Bvh>
+      <Tooltip />
       <Camaras layout={layout} />
       <Animador />
       {efectos && (
-        <EffectComposer multisampling={4}>
+        <EffectComposer multisampling={4} autoClear={false}>
+          <Outline visibleEdgeColor={new Color(paleta.ink).getHex()} hiddenEdgeColor={new Color(paleta.muted).getHex()} edgeStrength={4} width={1200} xRay />
           <Bloom luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.9} mipmapBlur />
         </EffectComposer>
       )}
-    </>
+    </Selection>
   );
 }
 
@@ -86,7 +93,9 @@ export default function Vista3D() {
             <Escena efectos={efectos} />
           </Canvas>
         </EscenaCtx.Provider>
+        <ControlesSim />
       </div>
+      <PanelParametros />
     </section>
   );
 }
