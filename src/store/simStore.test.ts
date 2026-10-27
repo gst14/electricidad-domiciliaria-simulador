@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EJEMPLO, freshRuntime, normalize, step } from "../domain/simulacion";
-import { crearSimStore, selectLayout3d } from "./simStore";
+import { circuitoModificado, crearSimStore, selectLayout3d } from "./simStore";
 
 const nuevo = () => crearSimStore(normalize(structuredClone(EJEMPLO)));
 const C2 = 1; // índice del circuito de tomas en el ejemplo
@@ -92,5 +92,46 @@ describe("simStore", () => {
     const L1 = selectLayout3d(st.getState());
     expect(L1).not.toBe(L0);
     expect(L1.bocas.filter((b) => b.circuitoId === "C2")).toHaveLength(10);
+  });
+
+  describe("restablecer circuito", () => {
+    it("vuelve el circuito a la configuración del proyecto sin tocar los demás", () => {
+      const st = nuevo(), a = st.getState().actions;
+      expect(circuitoModificado(st.getState(), C2)).toBe(false);
+      a.setCircuito(C2, { amperes: 25, seccion_mm2: 1.5, bocas: 3 });
+      a.toggleLoad(C2, 2, true);
+      a.removeLoad(C2, 0);
+      a.setCircuito(0, { amperes: 6 });
+      expect(circuitoModificado(st.getState(), C2)).toBe(true);
+      a.resetCircuito(C2);
+      expect(st.getState().cfg.circuitos[C2]).toEqual(st.getState().base.circuitos[C2]);
+      expect(circuitoModificado(st.getState(), C2)).toBe(false);
+      expect(st.getState().cfg.circuitos[0].amperes).toBe(6);
+    });
+
+    it("el proyecto de referencia es el último JSON aplicado", () => {
+      const st = nuevo(), a = st.getState().actions;
+      const json = structuredClone(st.getState().cfg);
+      json.circuitos[C2].amperes = 20;
+      expect(a.applyText(JSON.stringify(json))).toBeNull();
+      a.setCircuito(C2, { amperes: 32 });
+      a.resetCircuito(C2);
+      expect(st.getState().cfg.circuitos[C2].amperes).toBe(20);
+    });
+
+    it("un circuito que no estaba en el proyecto no se puede restablecer", () => {
+      const st = nuevo(), a = st.getState().actions;
+      const json = structuredClone(st.getState().cfg);
+      json.circuitos.push({ ...json.circuitos[C2], id: "C9" });
+      a.applyText(JSON.stringify(json));
+      a.restoreSample();
+      const cfg = st.getState().cfg;
+      expect(cfg.circuitos.some((k) => k.id === "C9")).toBe(false); // el ejemplo pasa a ser el proyecto
+      const otro = crearSimStore(normalize({ ...structuredClone(EJEMPLO), circuitos: [...structuredClone(EJEMPLO).circuitos, { ...EJEMPLO.circuitos[1], id: "C9" }] }), normalize(structuredClone(EJEMPLO)));
+      otro.getState().actions.setCircuito(3, { amperes: 10 });
+      expect(circuitoModificado(otro.getState(), 3)).toBe(false);
+      otro.getState().actions.resetCircuito(3);
+      expect(otro.getState().cfg.circuitos[3].amperes).toBe(10);
+    });
   });
 });

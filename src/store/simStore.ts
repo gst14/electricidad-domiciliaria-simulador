@@ -7,14 +7,19 @@ import { generarLayout } from "../domain/layout3d/generarLayout";
 import type { Layout3D } from "../domain/layout3d/tipos";
 
 export const KEY = "tablerista-cfg";
-const storage = {
-  get(): string | null { try { return localStorage.getItem(KEY); } catch { return null; } },
-  set(v: string) { try { localStorage.setItem(KEY, v); } catch { /* sin storage */ } },
-};
-export function cfgInicial(): Config {
-  try { const saved = storage.get(); return normalize(saved ? JSON.parse(saved) : structuredClone(EJEMPLO)); }
+// Proyecto tal como se cargó (JSON aplicado o ejemplo): referencia para restablecer circuitos.
+export const KEY_BASE = "tablerista-base";
+const almacen = (key: string) => ({
+  get(): string | null { try { return localStorage.getItem(key); } catch { return null; } },
+  set(v: string) { try { localStorage.setItem(key, v); } catch { /* sin storage */ } },
+});
+const storage = almacen(KEY), storageBase = almacen(KEY_BASE);
+const leer = (saved: string | null) => {
+  try { return normalize(saved ? JSON.parse(saved) : structuredClone(EJEMPLO)); }
   catch { return normalize(structuredClone(EJEMPLO)); }
-}
+};
+export const cfgInicial = (): Config => leer(storage.get());
+export const baseInicial = (): Config => leer(storageBase.get());
 
 export type Vista = "tablero" | "3d";
 export type ClaveProteccion = "tg" | "id" | string;
@@ -62,6 +67,7 @@ export interface Acciones {
   toggleLoad(ci: number, ai: number, on: boolean): void;
   setCarga(ci: number, ai: number, patch: Partial<Carga>): void;
   setCircuito(ci: number, patch: Partial<Omit<Circuito, "id" | "cargas">>): void;
+  resetCircuito(ci: number): void;
   setTablero(patch: { termica_general?: Partial<Config["tablero"]["termica_general"]>; diferencial?: Partial<Config["tablero"]["diferencial"]> }): void;
   setPuestaTierra(patch: Partial<Config["puesta_tierra"]>): void;
   setLeak(ci: number, mA: number, bocaId?: string): void;
@@ -80,6 +86,7 @@ export interface Acciones {
 // cambio incrementa version para que los suscriptores se enteren.
 export interface SimState {
   cfg: Config;
+  base: Config; // configuración del proyecto cargado, para restablecer circuitos
   rt: Runtime;
   version: number;
   ui: UI;
@@ -95,7 +102,7 @@ export const ui3dInicial = (): UI3D => ({
   camara: { preset: "iso", n: 0 }, pose: null, destellos: [],
 });
 
-export function crearSimStore(cfg: Config = cfgInicial()) {
+export function crearSimStore(cfg: Config = cfgInicial(), base: Config = baseInicial()) {
   return createStore<SimState>()(subscribeWithSelector((set, get) => {
     const bump = () => set((s) => ({ version: s.version + 1 }));
     const act = (fn: (rt: Runtime, cfg: Config) => void) => { const { rt, cfg } = get(); fn(rt, cfg); step(cfg, rt, 0); bump(); };
@@ -131,6 +138,12 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
       toggleLoad: (ci, ai, on) => editCfg((c) => { c.circuitos[ci].cargas[ai].encendida = on; }),
       setCarga: (ci, ai, patch) => editCfg((c) => { Object.assign(c.circuitos[ci].cargas[ai], patch); }),
       setCircuito: (ci, patch) => editCfg((c) => { Object.assign(c.circuitos[ci], patch); }),
+      resetCircuito: (ci) => {
+        const k = get().cfg.circuitos[ci], orig = circuitoBase(get(), ci);
+        if (!orig) return;
+        logEv(get().rt, "ok", `${k.id}: configuración restablecida a la del proyecto.`);
+        editCfg((c) => { c.circuitos[ci] = structuredClone(orig); });
+      },
       setTablero: (patch) => editCfg((c) => {
         Object.assign(c.tablero.termica_general, patch.termica_general);
         Object.assign(c.tablero.diferencial, patch.diferencial);
@@ -167,6 +180,7 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
       applyText: (txt) => {
         try {
           const next = normalize(JSON.parse(txt));
+          set({ base: structuredClone(next) });
           commit(next, freshRuntime(next, get().rt));
           logEv(get().rt, "ok", `Configuración aplicada: ${next.circuitos.length} circuitos.`);
           return null;
@@ -178,6 +192,7 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
         const next = normalize(structuredClone(EJEMPLO));
         const rt = freshRuntime(next, get().rt);
         rt.simT = 0; rt.kwh = 0; rt.log = [];
+        set({ base: structuredClone(next) });
         commit(next, rt);
         logEv(rt, "ok", "Ejemplo restaurado.");
       },
@@ -187,11 +202,22 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
 
     const rt = freshRuntime(cfg);
     step(cfg, rt, 0);
-    return { cfg, rt, version: 0, ui: { vista: "tablero" }, ui3d: ui3dInicial(), actions };
+    return { cfg, base, rt, version: 0, ui: { vista: "tablero" }, ui3d: ui3dInicial(), actions };
   }));
 }
 
 export type SimStore = ReturnType<typeof crearSimStore>;
+
+/* Circuito del proyecto con el mismo id, o undefined si el circuito no estaba en el proyecto. */
+export function circuitoBase(s: Pick<SimState, "cfg" | "base">, ci: number): Circuito | undefined {
+  const id = s.cfg.circuitos[ci]?.id;
+  return s.base.circuitos.find((k) => k.id === id);
+}
+/* ¿El circuito difiere de como estaba en el proyecto? */
+export function circuitoModificado(s: Pick<SimState, "cfg" | "base">, ci: number): boolean {
+  const orig = circuitoBase(s, ci);
+  return !!orig && JSON.stringify(orig) !== JSON.stringify(s.cfg.circuitos[ci]);
+}
 
 export const simStore = crearSimStore();
 
@@ -220,7 +246,10 @@ let detener: (() => void) | null = null;
 export function iniciarSimulacion(store: SimStore = simStore): () => void {
   if (detener) return detener;
   storage.set(JSON.stringify(store.getState().cfg, null, 2));
-  const unsub = store.subscribe((s) => s.cfg, (cfg) => storage.set(JSON.stringify(cfg, null, 2)));
+  storageBase.set(JSON.stringify(store.getState().base));
+  const unsubCfg = store.subscribe((s) => s.cfg, (cfg) => storage.set(JSON.stringify(cfg, null, 2)));
+  const unsubBase = store.subscribe((s) => s.base, (base) => storageBase.set(JSON.stringify(base)));
+  const unsub = () => { unsubCfg(); unsubBase(); };
   let last = performance.now();
   const id = setInterval(() => {
     const now = performance.now(), dt = Math.min(0.5, (now - last) / 1000);

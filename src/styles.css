@@ -119,6 +119,7 @@ select,input[type=number],textarea{background:var(--module);border:1px solid var
 .sw:checked{background:var(--live)} .sw:checked::after{left:17px}
 .adder{display:flex;gap:6px;flex-wrap:wrap}
 .adder select{flex:1;min-width:0}
+button.restablecer{font-size:12px;padding:4px 10px}
 .faults{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px}
 .faults .seg button{font-size:12px;padding:4px 8px}
 .danger{color:var(--trip);border-color:color-mix(in srgb,var(--trip) 50%,var(--line))}

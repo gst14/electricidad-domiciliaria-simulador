@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { varColorCircuito } from "../../../components/colorCircuito";
+import BotonRestablecer from "../../../components/BotonRestablecer";
 import { CATALOGO, fmt, hms, IZ, loadA, validate } from "../../../domain/simulacion";
 import type { Circuito } from "../../../domain/simulacion";
 import { simStore, useSimStore } from "../../../store/simStore";
@@ -83,10 +84,13 @@ function FichaCircuito({ k, ci, avisos }: { k: Circuito; ci: number; avisos: [st
         <span className="cdot" style={{ "--cc": varColorCircuito(ci) } as CSSProperties} aria-hidden="true" /><span className="cid">{k.id}</span><span className="ctitle">{k.descripcion}</span><span className={`chip ${k.tipo}`}>{k.tipo}</span>
       </summary>
       <div className="ficha-cuerpo">
-        <button className="link" aria-pressed={seleccionado}
-          onClick={() => actions.setUi3d({ seleccion: seleccionado ? null : { tipo: "circuito", circuitoId: k.id } })}>
-          {seleccionado ? "Quitar resaltado en 3D" : "Resaltar en 3D"}
-        </button>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <button className="link" aria-pressed={seleccionado}
+            onClick={() => actions.setUi3d({ seleccion: seleccionado ? null : { tipo: "circuito", circuitoId: k.id } })}>
+            {seleccionado ? "Quitar resaltado en 3D" : "Resaltar en 3D"}
+          </button>
+          <BotonRestablecer ci={ci} />
+        </div>
         <Indicadores k={k} />
         <div className="grilla">
           <CampoNumero etiqueta="Térmica" valor={k.amperes} unidad="A" min={1} max={125} onCommit={(v) => actions.setCircuito(ci, { amperes: v })} />
