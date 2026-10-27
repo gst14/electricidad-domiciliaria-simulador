@@ -19,6 +19,35 @@ export function cfgInicial(): Config {
 export type Vista = "tablero" | "3d";
 export type ClaveProteccion = "tg" | "id" | string;
 
+export type Capa = "casa" | "canerias" | "bocas" | "artefactos" | "luminarias" | "etiquetas";
+export type PestanaPanel = "circuitos" | "tablero" | "fallas";
+export type PresetCamara = "iso" | "planta" | "tablero" | "ambiente";
+
+/* Elemento seleccionado o bajo el cursor en la vista 3D. */
+export interface Seleccion {
+  tipo: "circuito" | "boca" | "artefacto" | "proteccion";
+  circuitoId?: string;
+  bocaId?: string;
+  cargaIndex?: number;
+  proteccion?: ClaveProteccion;
+}
+
+export interface UI3D {
+  seleccion: Seleccion | null;
+  hover: (Seleccion & { punto: [number, number, number] }) | null;
+  capas: Record<Capa, boolean>;
+  rayosX: boolean;
+  corte: boolean;
+  techo: boolean;
+  soloSeleccion: boolean;
+  pestana: PestanaPanel;
+  panelAbierto: boolean;
+  hoja: "cerrada" | "media" | "completa"; // bottom sheet en mobile
+  camara: { preset: PresetCamara; ambienteId?: string; n: number }; // n cambia en cada pedido
+  pose: number[] | null; // posición + target de la cámara, para restaurarla al volver a la vista
+  destellos: { circuitoId: string; bocaId?: string; t: number }[];
+}
+
 export interface UI {
   vista: Vista;
 }
@@ -44,6 +73,7 @@ export interface Acciones {
   applyText(txt: string): string | null;
   restoreSample(): void;
   setVista(v: Vista): void;
+  setUi3d(patch: Partial<UI3D> | ((u: UI3D) => Partial<UI3D>)): void;
 }
 
 // cfg es inmutable (se reemplaza en cada edición); rt (runtime) es mutable y cada
@@ -53,8 +83,17 @@ export interface SimState {
   rt: Runtime;
   version: number;
   ui: UI;
+  ui3d: UI3D;
   actions: Acciones;
 }
+
+export const ui3dInicial = (): UI3D => ({
+  seleccion: null, hover: null,
+  capas: { casa: true, canerias: true, bocas: true, artefactos: true, luminarias: true, etiquetas: true },
+  rayosX: false, corte: false, techo: false, soloSeleccion: false,
+  pestana: "circuitos", panelAbierto: true, hoja: "media",
+  camara: { preset: "iso", n: 0 }, pose: null, destellos: [],
+});
 
 export function crearSimStore(cfg: Config = cfgInicial()) {
   return createStore<SimState>()(subscribeWithSelector((set, get) => {
@@ -70,7 +109,8 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
     const nombre = (key: ClaveProteccion) => (key === "tg" ? "Térmica general" : key === "id" ? "Diferencial" : "Térmica " + key);
 
     const actions: Acciones = {
-      tick: (dtReal) => { const { cfg, rt } = get(); step(cfg, rt, rt.running ? dtReal * rt.speed : 0); bump(); },
+      // En pausa el paso no cambia nada: no se notifica, así la vista 3D no redibuja.
+      tick: (dtReal) => { const { cfg, rt } = get(); step(cfg, rt, rt.running ? dtReal * rt.speed : 0); if (rt.running) bump(); },
       lever: (key) => act((rt) => {
         const b = breaker(rt, key);
         if (b.on) { b.on = false; logEv(rt, "info", `${nombre(key)} abierta manualmente.`); }
@@ -133,11 +173,12 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
         logEv(rt, "ok", "Ejemplo restaurado.");
       },
       setVista: (vista) => set((s) => ({ ui: { ...s.ui, vista } })),
+      setUi3d: (patch) => set((s) => ({ ui3d: { ...s.ui3d, ...(typeof patch === "function" ? patch(s.ui3d) : patch) } })),
     };
 
     const rt = freshRuntime(cfg);
     step(cfg, rt, 0);
-    return { cfg, rt, version: 0, ui: { vista: "tablero" }, actions };
+    return { cfg, rt, version: 0, ui: { vista: "tablero" }, ui3d: ui3dInicial(), actions };
   }));
 }
 

@@ -1,0 +1,71 @@
+import { useMemo } from "react";
+import { Vector3 } from "three";
+import type { Circuito } from "../../../domain/simulacion";
+import { bocaDeCarga, claseDe } from "../../../domain/layout3d/generarLayout";
+import type { Boca, Layout3D, Vec3 } from "../../../domain/layout3d/tipos";
+import { simStore, useSimStore } from "../../../store/simStore";
+import { useEscena } from "../contexto";
+import Etiqueta from "./Etiqueta";
+
+type Forma = { tam: Vec3; cilindro?: boolean; enMuro?: boolean };
+
+/* Primitiva aproximada según el nombre del artefacto. */
+export function formaDe(nombre: string): Forma {
+  const n = nombre.toLowerCase();
+  if (n.includes("heladera")) return { tam: [0.6, 1.7, 0.65] };
+  if (n.includes("aire")) return { tam: [0.85, 0.28, 0.22], enMuro: true };
+  if (n.includes("termotanque")) return { tam: [0.45, 0.9, 0.45], cilindro: true, enMuro: true };
+  if (n.includes("lavarropas")) return { tam: [0.6, 0.85, 0.6] };
+  if (n.includes("televisor")) return { tam: [0.9, 0.55, 0.06] };
+  if (n.includes("microondas")) return { tam: [0.5, 0.3, 0.38] };
+  if (n.includes("horno")) return { tam: [0.55, 0.4, 0.45] };
+  if (n.includes("estufa")) return { tam: [0.6, 0.55, 0.2] };
+  if (n.includes("pava")) return { tam: [0.18, 0.24, 0.18], cilindro: true };
+  if (n.includes("bomba")) return { tam: [0.3, 0.3, 0.4], cilindro: true };
+  return { tam: [0.3, 0.25, 0.25] };
+}
+
+export interface Ubicacion { ci: number; ai: number; k: Circuito; boca: Boca; posicion: Vec3; forma: Forma; normal: Vec3 }
+
+/* Dónde va cada artefacto: frente a su boca, apoyado en el piso (o colgado del muro). */
+export function ubicarArtefactos(circuitos: Circuito[], layout: Layout3D): Ubicacion[] {
+  const out: Ubicacion[] = [], usados = new Map<string, number>();
+  circuitos.forEach((k, ci) => {
+    if (claseDe(k.tipo) === "luz") return;
+    k.cargas.forEach((a, ai) => {
+      const boca = bocaDeCarga(layout, k, ai);
+      if (!boca) return;
+      const forma = formaDe(a.nombre), n = new Vector3(...boca.normal);
+      const lateral = new Vector3(n.z, 0, -n.x), j = usados.get(boca.id) ?? 0;
+      usados.set(boca.id, j + 1);
+      const p = new Vector3(...boca.posicion).addScaledVector(n, forma.tam[2] / 2 + 0.03).addScaledVector(lateral, (j % 2 ? -1 : 1) * Math.ceil(j / 2) * 0.7);
+      p.y = forma.enMuro ? boca.posicion[1] : forma.tam[1] / 2;
+      out.push({ ci, ai, k, boca, posicion: [p.x, p.y, p.z], forma, normal: boca.normal });
+    });
+  });
+  return out;
+}
+
+function Artefacto({ u }: { u: Ubicacion }) {
+  const { paleta } = useEscena();
+  const capas = useSimStore((s) => s.ui3d.capas);
+  const nombre = u.k.cargas[u.ai].nombre;
+  const rotY = Math.atan2(u.normal[0], u.normal[2]);
+  const [w, h, d] = u.forma.tam;
+  return (
+    <group position={u.posicion} rotation-y={rotY}>
+      <mesh castShadow receiveShadow name={`artefacto-${u.k.id}-${u.ai}`} userData={{ seleccion: { tipo: "artefacto", circuitoId: u.k.id, cargaIndex: u.ai } }}
+        onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: { tipo: "artefacto", circuitoId: u.k.id, cargaIndex: u.ai, bocaId: u.boca.id }, pestana: "circuitos" }); }}>
+        {u.forma.cilindro ? <cylinderGeometry args={[w / 2, w / 2, h, 20]} /> : <boxGeometry args={[w, h, d]} />}
+        <meshStandardMaterial color={paleta.module} roughness={0.55} metalness={0.1} />
+      </mesh>
+      {capas.etiquetas && <Etiqueta position={[0, h / 2 + 0.12, 0]} className="v3d-etq">{nombre}</Etiqueta>}
+    </group>
+  );
+}
+
+export default function Artefactos({ layout }: { layout: Layout3D }) {
+  const cfg = useSimStore((s) => s.cfg);
+  const lista = useMemo(() => ubicarArtefactos(cfg.circuitos, layout), [cfg.circuitos, layout]);
+  return <group>{lista.map((u) => <Artefacto key={`${u.k.id}-${u.ai}`} u={u} />)}</group>;
+}
