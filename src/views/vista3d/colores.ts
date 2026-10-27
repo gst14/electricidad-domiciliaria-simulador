@@ -8,7 +8,7 @@ export type Paleta = Record<(typeof TOKENS)[number], string>;
 const DEFECTO: Paleta = {
   bg: "#E8EBEA", surface: "#F7F8F6", module: "#FDFDFB", ink: "#1B2226", muted: "#5B666C", line: "#CBD2D4", rail: "#B4BCBF",
   fase: "#8E5530", neutro: "#3A8FBF", tierra: "#5A962B", live: "#C9830A", trip: "#C4381F", ok: "#2C7A4B", warn: "#A86E12",
-  c1: "#7A4FC9", c2: "#0F8C7A", c3: "#C23D86", c4: "#3557C9", c5: "#5E8A12", c6: "#0E86A8", c7: "#9C3FB0", c8: "#5E6F86",
+  c1: "#C9830A", c2: "#0F8C7A", c3: "#C23D86", c4: "#3557C9", c5: "#5E8A12", c6: "#0E86A8", c7: "#9C3FB0", c8: "#5E6F86",
 };
 
 function leer(): Paleta {
