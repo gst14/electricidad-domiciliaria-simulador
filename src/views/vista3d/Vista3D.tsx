@@ -1,19 +1,37 @@
 import { Bvh, PerformanceMonitor } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
-import { useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { selectLayout3d, simStore, useSimStore } from "../../store/simStore";
 import { coloresCircuitos, usePaleta } from "./colores";
-import { EscenaCtx } from "./contexto";
+import { EscenaCtx, useEscena } from "./contexto";
 import Artefactos from "./escena/Artefactos";
 import Bocas from "./escena/Bocas";
 import Camaras from "./escena/Camaras";
 import Canerias from "./escena/Canerias";
 import Casa from "./escena/Casa";
+import Fallas from "./escena/Fallas";
 import Luminarias from "./escena/Luminarias";
 import Tablero from "./escena/Tablero";
+import { hayAnimacion } from "./mapeoVisual";
 import { useReducido } from "./useReducido";
 
-function Escena() {
+/*
+ * Con frameloop="demand" solo se dibuja cuando algo cambia: cada cambio del store invalida,
+ * y mientras haya animación (flujo, pulsos) se pide el frame siguiente. En pausa: 0 frames.
+ */
+function Animador() {
+  const invalidate = useThree((s) => s.invalidate);
+  const { reducido } = useEscena();
+  useEffect(() => simStore.subscribe(() => invalidate()), [invalidate]);
+  useFrame(() => {
+    const { cfg, rt } = simStore.getState();
+    if (hayAnimacion(cfg, rt, reducido)) invalidate();
+  });
+  return null;
+}
+
+function Escena({ efectos }: { efectos: boolean }) {
   const layout = useSimStore(selectLayout3d);
   const capas = useSimStore((s) => s.ui3d.capas);
   const W = Math.max(...layout.ambientes.map((a) => a.x + a.ancho)), L = Math.max(...layout.ambientes.map((a) => a.z + a.largo));
@@ -32,8 +50,15 @@ function Escena() {
         {capas.bocas && <Bocas layout={layout} />}
         {capas.luminarias && <Luminarias layout={layout} />}
         {capas.artefactos && <Artefactos layout={layout} />}
+        <Fallas layout={layout} />
       </Bvh>
       <Camaras layout={layout} />
+      <Animador />
+      {efectos && (
+        <EffectComposer multisampling={4}>
+          <Bloom luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.9} mipmapBlur />
+        </EffectComposer>
+      )}
     </>
   );
 }
@@ -46,6 +71,7 @@ export default function Vista3D() {
   const capaHtml = useRef<HTMLDivElement>(null!);
   const ctx = useMemo(() => ({ paleta, colores, reducido, capaHtml }), [paleta, colores, reducido]);
   const [dpr, setDpr] = useState(1.5);
+  const [efectos, setEfectos] = useState(true);
 
   return (
     <section className="v3d" aria-label="Vista 3D de la instalación">
@@ -55,8 +81,9 @@ export default function Vista3D() {
             onCreated={({ gl }) => { gl.localClippingEnabled = true; }}
             onPointerMissed={() => simStore.getState().actions.setUi3d({ seleccion: null })}>
             <color attach="background" args={[paleta.bg]} />
-            <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => setDpr(2)} />
-            <Escena />
+            {/* En equipos lentos baja la resolución y apaga el Bloom. */}
+            <PerformanceMonitor onDecline={() => { setDpr(1); setEfectos(false); }} onIncline={() => setDpr(2)} />
+            <Escena efectos={efectos} />
           </Canvas>
         </EscenaCtx.Provider>
       </div>

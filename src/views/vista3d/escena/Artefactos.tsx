@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import { Vector3 } from "three";
+import { fmt } from "../../../domain/simulacion";
 import type { Circuito } from "../../../domain/simulacion";
 import { bocaDeCarga, claseDe } from "../../../domain/layout3d/generarLayout";
 import type { Boca, Layout3D, Vec3 } from "../../../domain/layout3d/tipos";
+import type { Seleccion } from "../../../store/simStore";
 import { simStore, useSimStore } from "../../../store/simStore";
 import { useEscena } from "../contexto";
+import { hayTension } from "../mapeoVisual";
+import { eventosHover, opacidadSeleccion } from "./Canerias";
 import Etiqueta from "./Etiqueta";
 
 type Forma = { tam: Vec3; cilindro?: boolean; enMuro?: boolean };
@@ -47,19 +51,34 @@ export function ubicarArtefactos(circuitos: Circuito[], layout: Layout3D): Ubica
 }
 
 function Artefacto({ u }: { u: Ubicacion }) {
-  const { paleta } = useEscena();
-  const capas = useSimStore((s) => s.ui3d.capas);
-  const nombre = u.k.cargas[u.ai].nombre;
+  const { paleta, colores } = useEscena();
+  const etiquetas = useSimStore((s) => s.ui3d.capas.etiquetas);
+  // Solo re-renderiza cuando cambia lo que se ve, no en cada tick.
+  const estado = useSimStore((s) => {
+    const a = s.cfg.circuitos[u.ci]?.cargas[u.ai];
+    const on = !!a?.encendida && hayTension(s.rt, u.k.id);
+    return `${on ? 1 : 0}|${a?.encendida ? 1 : 0}|${opacidadSeleccion(s.ui3d.seleccion, u.k.id)}|${s.ui3d.soloSeleccion ? 1 : 0}`;
+  });
+  const [on, enc, op, solo] = estado.split("|").map(Number);
+  const a = u.k.cargas[u.ai];
   const rotY = Math.atan2(u.normal[0], u.normal[2]);
   const [w, h, d] = u.forma.tam;
+  const sel: Seleccion = { tipo: "artefacto", circuitoId: u.k.id, cargaIndex: u.ai, bocaId: u.boca.id };
+  if (solo && op < 1) return null;
   return (
     <group position={u.posicion} rotation-y={rotY}>
-      <mesh castShadow receiveShadow name={`artefacto-${u.k.id}-${u.ai}`} userData={{ seleccion: { tipo: "artefacto", circuitoId: u.k.id, cargaIndex: u.ai } }}
-        onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: { tipo: "artefacto", circuitoId: u.k.id, cargaIndex: u.ai, bocaId: u.boca.id }, pestana: "circuitos" }); }}>
+      <mesh castShadow receiveShadow name={`artefacto-${u.k.id}-${u.ai}`} userData={{ seleccion: sel }}
+        onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: sel, pestana: "circuitos" }); }}
+        {...eventosHover(sel)}>
         {u.forma.cilindro ? <cylinderGeometry args={[w / 2, w / 2, h, 20]} /> : <boxGeometry args={[w, h, d]} />}
-        <meshStandardMaterial color={paleta.module} roughness={0.55} metalness={0.1} />
+        <meshStandardMaterial color={paleta.module} roughness={0.55} metalness={0.1} transparent opacity={op}
+          emissive={colores[u.k.id]} emissiveIntensity={on ? 0.35 : 0} />
       </mesh>
-      {capas.etiquetas && <Etiqueta position={[0, h / 2 + 0.12, 0]} className="v3d-etq">{nombre}</Etiqueta>}
+      {etiquetas && op === 1 && (
+        <Etiqueta position={[0, h / 2 + 0.12, 0]} className="v3d-etq">
+          {a.nombre} · {on ? `${fmt(a.potencia_w, 0)} W` : enc ? "sin tensión" : "apagado"}
+        </Etiqueta>
+      )}
     </group>
   );
 }

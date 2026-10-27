@@ -1,10 +1,19 @@
-import { useEffect, useMemo } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { Color } from "three";
+import type { Mesh, MeshStandardMaterial } from "three";
 import type { Layout3D, Vec3 } from "../../../domain/layout3d/tipos";
+import type { Seleccion } from "../../../store/simStore";
 import { simStore } from "../../../store/simStore";
 import { useEscena } from "../contexto";
-import { tubosCircuito } from "../geometria";
+import { texturaGuiones, texturaRayado, tubosCircuito } from "../geometria";
+import { colorNivel, estadoVisualCircuito, intensidadPulso } from "../mapeoVisual";
 
 export const RADIO_CANO = 0.011;
+const GUIONES_POR_M = 4;
+const COLOR_FLUJO = new Color("#FFE7B0");
+const BLANCO = new Color("#ffffff");
 
 /* Recorridos agrupados por circuito, con una firma para no rehacer geometría de circuitos sin cambios. */
 export function recorridosPorCircuito(layout: Layout3D): Map<string, { firma: string; puntos: Vec3[][] }> {
@@ -13,17 +22,75 @@ export function recorridosPorCircuito(layout: Layout3D): Map<string, { firma: st
   return new Map([...m].map(([id, puntos]) => [id, { firma: JSON.stringify(puntos), puntos }]));
 }
 
+/* Atenuación por selección: 1 si no hay selección o es este circuito. */
+export function opacidadSeleccion(sel: Seleccion | null, circuitoId: string): number {
+  return !sel?.circuitoId || sel.circuitoId === circuitoId ? 1 : 0.18;
+}
+
+export function eventosHover(sel: Seleccion) {
+  return {
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation();
+      document.body.style.cursor = "pointer";
+      simStore.getState().actions.setUi3d({ hover: { ...sel, punto: e.point.toArray() as Vec3 } });
+    },
+    onPointerOut: () => {
+      document.body.style.cursor = "";
+      simStore.getState().actions.setUi3d({ hover: null });
+    },
+  };
+}
+
 function CanoCircuito({ circuitoId, firma, puntos }: { circuitoId: string; firma: string; puntos: Vec3[][] }) {
-  const { colores } = useEscena();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- la firma resume los puntos
+  const { colores, paleta, reducido } = useEscena();
+  /* eslint-disable react-hooks/exhaustive-deps -- la firma resume los puntos */
   const geo = useMemo(() => tubosCircuito(puntos, RADIO_CANO), [firma]);
-  useEffect(() => () => geo?.dispose(), [geo]);
-  if (!geo) return null;
+  const geoHalo = useMemo(() => tubosCircuito(puntos, RADIO_CANO * 2.2), [firma]);
+  /* eslint-enable react-hooks/exhaustive-deps */
+  useEffect(() => () => { geo?.dispose(); geoHalo?.dispose(); }, [geo, geoHalo]);
+
+  const flujo = useMemo(() => { const t = texturaGuiones().clone(); t.repeat.set(GUIONES_POR_M, 1); return t; }, []);
+  const rayas = useMemo(() => { const t = texturaRayado().clone(); t.repeat.set(10, 1); return t; }, []);
+  useEffect(() => () => { flujo.dispose(); rayas.dispose(); }, [flujo, rayas]);
+
+  const cano = useRef<Mesh>(null), halo = useRef<Mesh>(null);
+  const tmp = useMemo(() => new Color(), []);
+
+  useFrame(({ clock }, dt) => {
+    const { cfg, rt, ui3d } = simStore.getState();
+    const k = cfg.circuitos.find((c) => c.id === circuitoId);
+    if (!k || !cano.current || !halo.current) return;
+    const e = estadoVisualCircuito(cfg, rt, k);
+    const m = cano.current.material as MeshStandardMaterial;
+    tmp.set(colorNivel(e.nivel, colores[circuitoId], paleta));
+    const p = intensidadPulso(e.pulso, clock.elapsedTime, reducido);
+    if (e.pulso !== "no") tmp.lerp(BLANCO, 0.4 * p);
+    m.color.copy(tmp);
+    m.emissiveIntensity = e.flujo > 0 ? 1.1 : 0;
+    if (e.flujo > 0 && rt.running && !reducido) flujo.offset.x -= e.flujo * GUIONES_POR_M * dt;
+    const op = opacidadSeleccion(ui3d.seleccion, circuitoId);
+    m.opacity = op;
+    cano.current.visible = !(ui3d.soloSeleccion && ui3d.seleccion?.circuitoId && op < 1);
+
+    const h = halo.current, hm = h.material as MeshStandardMaterial;
+    h.visible = cano.current.visible && (e.subdimensionado || e.izExcedida);
+    hm.opacity = (e.izExcedida ? 0.45 + 0.4 * intensidadPulso("rapido", clock.elapsedTime, reducido) : 0.6) * op;
+    if (e.izExcedida && !reducido) rayas.offset.x -= dt * 0.6;
+  });
+
+  const sel: Seleccion = { tipo: "circuito", circuitoId };
+  if (!geo || !geoHalo) return null;
   return (
-    <mesh geometry={geo} castShadow userData={{ seleccion: { tipo: "circuito", circuitoId } }}
-      onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: { tipo: "circuito", circuitoId }, pestana: "circuitos" }); }}>
-      <meshStandardMaterial color={colores[circuitoId]} roughness={0.5} />
-    </mesh>
+    <group>
+      <mesh ref={cano} geometry={geo} castShadow name={"cano-" + circuitoId} userData={{ seleccion: sel }}
+        onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: sel, pestana: "circuitos" }); }}
+        {...eventosHover(sel)}>
+        <meshStandardMaterial color={colores[circuitoId]} roughness={0.5} emissive={COLOR_FLUJO} emissiveMap={flujo} emissiveIntensity={0} transparent />
+      </mesh>
+      <mesh ref={halo} geometry={geoHalo} visible={false} raycast={() => null} renderOrder={3}>
+        <meshStandardMaterial color={paleta.trip} emissive={paleta.trip} emissiveIntensity={0.6} alphaMap={rayas} transparent depthWrite={false} />
+      </mesh>
+    </group>
   );
 }
 

@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { Vec3 } from "../../../domain/layout3d/tipos";
 import { simStore, useSimStore } from "../../../store/simStore";
 import { useEscena } from "../contexto";
+import { estadoTierra } from "../mapeoVisual";
 import Etiqueta from "./Etiqueta";
 
 export const MODULO = 0.036; // ancho de un módulo DIN, 18 mm × 2 de escala
@@ -20,6 +21,10 @@ function Modulo({ clave, x, modulos, rotulo, color }: ModuloProps) {
   const palanca = useRef<Group>(null);
   const seleccionar = () => simStore.getState().actions.setUi3d({ seleccion: { tipo: "proteccion", proteccion: clave, circuitoId: clave === "tg" || clave === "id" ? undefined : clave }, pestana: clave === "tg" || clave === "id" ? "tablero" : "circuitos" });
   const w = modulos * MODULO;
+  const estado = useSimStore((s) => {
+    const b = clave === "tg" ? s.rt.tg : clave === "id" ? s.rt.id : s.rt.c[clave];
+    return !b ? "on" : b.tripped ? "disparada" : b.on ? "on" : "abierta";
+  });
 
   // La palanca gira hacia arriba (cerrada) o hacia abajo (abierta o disparada).
   useFrame((state, dt) => {
@@ -45,14 +50,17 @@ function Modulo({ clave, x, modulos, rotulo, color }: ModuloProps) {
       <group ref={palanca} position={[0, 0, 0.03]}>
         <mesh position={[0, 0, 0.014]} name={"palanca-" + clave}
           onClick={(e) => { e.stopPropagation(); simStore.getState().actions.lever(clave); seleccionar(); }}
-          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
-          onPointerOut={() => { document.body.style.cursor = ""; }}>
+          onPointerOver={(e) => {
+            e.stopPropagation(); document.body.style.cursor = "pointer";
+            simStore.getState().actions.setUi3d({ hover: { tipo: "proteccion", proteccion: clave, punto: e.point.toArray() as Vec3 } });
+          }}
+          onPointerOut={() => { document.body.style.cursor = ""; simStore.getState().actions.setUi3d({ hover: null }); }}>
           <boxGeometry args={[Math.min(0.018, w * 0.5), 0.03, 0.028]} />
-          <meshStandardMaterial color={paleta.ink} roughness={0.5} />
+          <meshStandardMaterial color={estado === "disparada" ? paleta.trip : paleta.ink} emissive={paleta.trip} emissiveIntensity={estado === "disparada" ? 0.6 : 0} roughness={0.5} />
         </mesh>
       </group>
-      <Etiqueta position={[0, -ALTO_MOD / 2 - 0.012, 0.03]} className="v3d-mod" distanceFactor={1.2}>
-        {rotulo}
+      <Etiqueta position={[0, -ALTO_MOD / 2 - 0.012, 0.03]} className={"v3d-mod" + (estado === "disparada" ? " alerta" : "")} distanceFactor={1.2}>
+        {rotulo}{estado === "on" ? "" : estado === "disparada" ? " · DISPARADA" : " · ABIERTA"}
       </Etiqueta>
     </group>
   );
@@ -62,6 +70,7 @@ export default function Tablero({ posicion }: { posicion: Vec3 }) {
   const { paleta, colores } = useEscena();
   const cfg = useSimStore((s) => s.cfg);
   const { capas } = useSimStore(useShallow((s) => ({ capas: s.ui3d.capas })));
+  const alerta = useSimStore((s) => (s.rt.tg.tripped ? "Térmica general disparada: toda la casa sin tensión" : s.rt.id.tripped ? "Diferencial disparado: toda la casa sin tensión" : ""));
   const tg = cfg.tablero.termica_general, di = cfg.tablero.diferencial, pe = cfg.puesta_tierra;
   const mods = [
     { clave: "tg", modulos: 2, rotulo: `TG ${tg.curva}${tg.amperes}`, color: paleta.fase },
@@ -86,7 +95,9 @@ export default function Tablero({ posicion }: { posicion: Vec3 }) {
         <group position={[0, 0, 0.085]}>
           {mods.map((m) => { const el = <Modulo key={m.clave} x={x} {...m} />; x += m.modulos * MODULO; return el; })}
         </group>
-        {capas.etiquetas && <Etiqueta position={[0, 0.2, 0.05]} className="v3d-etq">Tablero</Etiqueta>}
+        {alerta
+          ? <Etiqueta position={[0, 0.22, 0.05]} className="v3d-etq alerta">⚠ {alerta}</Etiqueta>
+          : capas.etiquetas && <Etiqueta position={[0, 0.2, 0.05]} className="v3d-etq">Tablero</Etiqueta>}
       </group>
       {/* Conductor de protección hasta la jabalina */}
       <mesh position={[tx - ancho / 2 + 0.03, (ty - 0.15) / 2, tz]}>
@@ -103,7 +114,7 @@ export default function Tablero({ posicion }: { posicion: Vec3 }) {
             <ringGeometry args={[0.05, 0.09, 24]} />
             <meshBasicMaterial color={paleta.tierra} />
           </mesh>
-          {capas.etiquetas && <Etiqueta position={[0, 0.3, 0]} className="v3d-etq">Jabalina{pe.resistencia_ohm ? ` · ${pe.resistencia_ohm} Ω` : ""}</Etiqueta>}
+          {capas.etiquetas && <Etiqueta position={[0, 0.3, 0]} className={"v3d-etq" + (estadoTierra(cfg) === "ok" ? "" : " alerta")}>Jabalina{pe.resistencia_ohm ? ` · ${pe.resistencia_ohm} Ω` : ""}</Etiqueta>}
         </group>
       ) : (
         capas.etiquetas && <Etiqueta position={j} className="v3d-etq alerta">Sin puesta a tierra</Etiqueta>

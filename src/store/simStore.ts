@@ -65,7 +65,7 @@ export interface Acciones {
   setTablero(patch: { termica_general?: Partial<Config["tablero"]["termica_general"]>; diferencial?: Partial<Config["tablero"]["diferencial"]> }): void;
   setPuestaTierra(patch: Partial<Config["puesta_tierra"]>): void;
   setLeak(ci: number, mA: number, bocaId?: string): void;
-  short(ci: number): void;
+  short(ci: number, bocaId?: string): void;
   togglePlay(): void;
   setSpeed(s: number): void;
   rearmAll(): void;
@@ -142,11 +142,20 @@ export function crearSimStore(cfg: Config = cfgInicial()) {
         rt.c[k.id].leakBoca = v ? bocaId : undefined;
         logEv(rt, "info", v ? `${k.id}: falla de aislación de ${v} mA hacia la carcasa.` : `${k.id}: aislación reparada.`);
       }),
-      short: (ci) => act((rt, c) => {
-        const k = c.circuitos[ci], s = rt.c[k.id];
-        if (rt.tg.on && rt.id.on && s.on) trip(rt, s, `Térmica ${k.id}`, "cortocircuito, más de 1000 A en milisegundos. Disparo magnético instantáneo; la general no llega a actuar (selectividad).");
-        else logEv(rt, "info", `${k.id} no tiene tensión: el cortocircuito no hace nada.`);
-      }),
+      short: (ci, bocaId) => {
+        let hubo = false;
+        act((rt, c) => {
+          const k = c.circuitos[ci], s = rt.c[k.id];
+          hubo = rt.tg.on && rt.id.on && s.on;
+          if (hubo) trip(rt, s, `Térmica ${k.id}`, "cortocircuito, más de 1000 A en milisegundos. Disparo magnético instantáneo; la general no llega a actuar (selectividad).");
+          else logEv(rt, "info", `${k.id} no tiene tensión: el cortocircuito no hace nada.`);
+        });
+        // Destello en la boca (efecto visual transitorio, no es estado eléctrico).
+        if (hubo) {
+          const ahora = performance.now(), circuitoId = get().cfg.circuitos[ci].id;
+          set((s) => ({ ui3d: { ...s.ui3d, destellos: [...s.ui3d.destellos.filter((d) => ahora - d.t < 2000), { circuitoId, bocaId, t: ahora }] } }));
+        }
+      },
       togglePlay: () => { get().rt.running = !get().rt.running; bump(); },
       setSpeed: (s) => { get().rt.speed = s; bump(); },
       rearmAll: () => act((rt) => {
