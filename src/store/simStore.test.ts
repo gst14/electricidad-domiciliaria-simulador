@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EJEMPLO, freshRuntime, normalize, step } from "../domain/simulacion";
-import { crearSimStore } from "./simStore";
+import { crearSimStore, selectLayout3d } from "./simStore";
 
 const nuevo = () => crearSimStore(normalize(structuredClone(EJEMPLO)));
 const C2 = 1; // índice del circuito de tomas en el ejemplo
@@ -80,5 +80,17 @@ describe("simStore", () => {
     const { log: _l1, ...x } = st.getState().rt;
     const { log: _l2, ...y } = ref;
     expect(x).toEqual(y);
+  });
+
+  it("el layout 3D no cambia al encender cargas o cambiar amperes, sí al cambiar bocas", () => {
+    const st = nuevo(), a = st.getState().actions;
+    const L0 = selectLayout3d(st.getState());
+    a.toggleLoad(C2, 2, true);
+    a.setCircuito(C2, { amperes: 20 });
+    expect(selectLayout3d(st.getState())).toBe(L0);
+    a.setCircuito(C2, { bocas: 10 });
+    const L1 = selectLayout3d(st.getState());
+    expect(L1).not.toBe(L0);
+    expect(L1.bocas.filter((b) => b.circuitoId === "C2")).toHaveLength(10);
   });
 });

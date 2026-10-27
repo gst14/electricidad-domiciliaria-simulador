@@ -3,6 +3,8 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import { CATALOGO, EJEMPLO, freshRuntime, logEv, normalize, step, trip } from "../domain/simulacion";
 import type { Carga, Circuito, Config, Proteccion, Runtime } from "../domain/simulacion";
+import { generarLayout } from "../domain/layout3d/generarLayout";
+import type { Layout3D } from "../domain/layout3d/tipos";
 
 export const KEY = "tablerista-cfg";
 const storage = {
@@ -145,6 +147,21 @@ export const simStore = crearSimStore();
 
 export function useSimStore<T>(selector: (s: SimState) => T): T {
   return useStore(simStore, selector);
+}
+
+/*
+ * Layout 3D derivado de cfg. Solo depende de la estructura (bocas, tipos, nombres de cargas,
+ * superficie, layout3d): encender cargas o cambiar amperes devuelve el mismo objeto.
+ */
+let cacheLayout: { firma: string; layout: Layout3D } | null = null;
+export function firmaLayout(cfg: Config): string {
+  return JSON.stringify([cfg.superficie_m2, cfg.layout3d ?? null,
+    cfg.circuitos.map((k) => [k.id, k.tipo, k.bocas, k.descripcion, k.cargas.map((a) => a.nombre)])]);
+}
+export function selectLayout3d(s: Pick<SimState, "cfg">): Layout3D {
+  const firma = firmaLayout(s.cfg);
+  if (cacheLayout?.firma !== firma) cacheLayout = { firma, layout: generarLayout(s.cfg, cacheLayout?.layout) };
+  return cacheLayout.layout;
 }
 
 let detener: (() => void) | null = null;

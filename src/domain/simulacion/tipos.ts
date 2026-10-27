@@ -1,3 +1,5 @@
+import type { Layout3D } from "../layout3d/tipos";
+
 export type Curva = "B" | "C" | "D";
 
 export interface Carga {
@@ -30,7 +32,7 @@ export interface Config {
   };
   puesta_tierra: { jabalina: boolean; resistencia_ohm: number };
   circuitos: Circuito[];
-  layout3d?: unknown;
+  layout3d?: Layout3D; // opcional: si falta, se genera con generarLayout
 }
 
 /* Estado mutable de una protección. */
