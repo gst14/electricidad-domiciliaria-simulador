@@ -1,0 +1,14 @@
+{
+  "vivienda": "Casa ejemplo 95 m2",
+  "tension": "220 V monofásico",
+  "grado_electrificacion": "medio",
+  "tablero": {
+    "termica_general": { "polos": 2, "amperes": 32, "curva": "C" },
+    "diferencial": { "polos": 2, "amperes": 40, "sensibilidad_ma": 30 }
+  },
+  "circuitos": [
+    { "id": "C1", "tipo": "IUG", "descripcion": "Luces", "amperes": 10, "seccion_mm2": 1.5, "bocas": 12 },
+    { "id": "C2", "tipo": "TUG", "descripcion": "Tomas", "amperes": 16, "seccion_mm2": 2.5, "bocas": 14 },
+    { "id": "C3", "tipo": "TUE", "descripcion": "Aire acond.", "amperes": 20, "seccion_mm2": 4, "bocas": 1 }
+  ]
+}
