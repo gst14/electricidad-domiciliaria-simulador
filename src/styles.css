@@ -175,7 +175,7 @@ textarea{width:100%;min-height:340px;font-family:var(--f-mono);font-size:12.5px;
 /* panel de parámetros */
 .panel3d{background:var(--surface);min-width:0;display:flex;flex-direction:column}
 .panel3d-cuerpo{display:flex;flex-direction:column;gap:12px;min-height:0;flex:1;padding:16px}
-.panel3d-scroll{overflow-y:auto;min-height:0;flex:1;padding-right:4px;margin-right:-4px}
+.panel3d-scroll{overflow-y:auto;overflow-x:hidden;min-height:0;flex:1;padding-right:4px;margin-right:-4px}
 .panel3d .pestanas{align-self:flex-start}
 .panel3d fieldset{border:1px solid var(--line);border-radius:8px;padding:10px 12px 12px;margin:0;display:grid;gap:10px;min-width:0}
 .panel3d legend{font-size:12px;font-stretch:85%;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:0 4px}
@@ -190,13 +190,16 @@ textarea{width:100%;min-height:340px;font-family:var(--f-mono);font-size:12.5px;
 button.primario{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 button.link{border:0;background:none;padding:0;color:var(--muted);text-decoration:underline;font-weight:500;justify-self:start}
 button:disabled{opacity:.5;cursor:not-allowed}
-.ficha{border:1px solid var(--line);border-radius:8px;background:var(--module)}
+.ficha{border:1px solid var(--line);border-radius:8px;background:var(--module);min-width:0}
+.ficha-cuerpo>*,.panel3d-scroll>*{min-width:0}
 .ficha.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 .ficha summary{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;list-style:none}
 .ficha summary::-webkit-details-marker{display:none}
 .ficha summary::after{content:"▾";margin-left:auto;color:var(--muted)}
 .ficha:not([open]) summary::after{content:"▸"}
-.ficha-cuerpo{display:grid;gap:10px;padding:0 10px 12px}
+.ficha-cuerpo{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:0 10px 12px}
+.cargas{grid-template-columns:minmax(0,1fr)}
+.adder select{min-width:0}
 .ind{display:grid;gap:4px}
 .ind-fila{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .gauge .fill.nivel-normal{background:var(--ok)} .gauge .fill.nivel-ambar{background:#E3A21A} .gauge .fill.nivel-naranja{background:#E8711C}
@@ -211,7 +214,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .aviso.error{border-color:var(--trip);color:var(--trip)} .aviso.warn{border-color:var(--warn);color:var(--warn)}
 .avisos{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .cargas{display:grid;gap:6px}
-.carga{display:flex;align-items:center;gap:8px;min-width:0}
+.carga{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
 .carga label{flex:1;min-width:0;font-size:13px}
 .rearmes{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .rearme{display:flex;align-items:center;gap:8px;font-size:13px}
@@ -238,7 +241,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 }
 /* barra de vista */
 .v3d-barra{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:none}
-.v3d-barra>*{pointer-events:auto}
+.v3d-barra>*,.v3d-tira>*{pointer-events:auto}
+.v3d-tira{display:contents}
+/* Barras por encima de las etiquetas 3D (que usan z-index hasta 40) */
+.v3d-sim,.v3d-barra{z-index:50}
+.v3d-sim button,.v3d-barra button,.v3d-menu summary{white-space:nowrap}
 .v3d-barra .seg,.v3d-barra select,.v3d-menu summary{background:var(--surface);box-shadow:0 1px 3px rgb(0 0 0/.12)}
 .v3d-barra select{font-size:13px;padding:6px 8px;border-radius:6px;max-width:100%}
 .v3d-menu{position:relative}
@@ -246,3 +253,42 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .v3d-menu summary::-webkit-details-marker{display:none}
 .v3d-menu-cuerpo{position:absolute;bottom:calc(100% + 6px);left:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px;min-width:170px;box-shadow:0 6px 18px rgb(0 0 0/.15)}
 @media (max-width:1023.98px){.v3d-barra{bottom:56px}}
+/* ---------- celular y táctil ---------- */
+/* Objetivos táctiles de al menos 40 px y campos de 16 px (iOS no hace zoom al enfocarlos). */
+@media (pointer:coarse){
+  button,.seg button,.v3d-menu summary{min-height:40px}
+  .seg button{min-width:40px}
+  select,input[type=number],textarea{font-size:16px;min-height:40px}
+  .sw{width:44px;height:26px;border-radius:13px}
+  .sw::after{width:20px;height:20px}
+  .sw:checked::after{left:21px}
+  .load .x,.panel3d .x,.inspector .x,button.x{min-width:40px;min-height:40px}
+  .faults .seg button{font-size:13px;padding:6px 10px}
+  .testbtn{min-width:32px;min-height:32px}
+  button.link{min-height:40px}
+  button.restablecer{font-size:13px;padding:6px 12px}
+  .asa{padding:14px 0 10px}
+  .ficha summary{min-height:48px}
+  .campo.compacto{width:120px}
+  .mod .lever{width:40px}
+  input[type=file]{min-height:40px;font-size:14px}
+}
+@media (max-width:1023.98px){
+  /* En la vista 3D el encabezado se compacta: los controles de simulación ya están sobre el Canvas. */
+  .en-3d .top p,.en-3d .top .row{display:none}
+  .en-3d{gap:12px}
+  .carga label{flex:1 1 140px} /* la potencia baja a otra línea */
+  .en-3d .v3d-lienzo{height:calc(100svh - 190px);min-height:440px}
+  .v3d-sim{top:8px;left:8px;right:8px;gap:6px}
+  .v3d-barra{left:8px;right:8px;gap:6px;flex-wrap:nowrap;align-items:flex-end}
+  /* Una sola fila deslizable en cada barra, para no tapar la escena */
+  .v3d-sim,.v3d-tira{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
+  .v3d-sim::-webkit-scrollbar,.v3d-tira::-webkit-scrollbar{display:none}
+  .v3d-tira{display:flex;gap:6px;min-width:0;flex:1;pointer-events:auto}
+  .v3d-sim>*,.v3d-tira>*{flex:none}
+}
+@media (max-width:480px){
+  .v3d-sim>.num{display:none}
+  .meter .val{font-size:19px}
+  .chead .ctitle{font-size:15px}
+}

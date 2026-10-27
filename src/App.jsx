@@ -32,7 +32,7 @@ export default function App() {
   }, [actions]);
 
   return (
-    <div className="wrap">
+    <div className={"wrap" + (vista === "3d" ? " en-3d" : "")}>
       <Header rt={rt} actions={actions} />
       <Vistas vista={vista} />
       <Status cfg={cfg} rt={rt} />

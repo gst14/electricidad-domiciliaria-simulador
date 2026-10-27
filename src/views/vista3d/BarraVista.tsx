@@ -21,13 +21,7 @@ export default function BarraVista() {
 
   return (
     <div className="v3d-barra" role="toolbar" aria-label="Opciones de vista 3D">
-      <span className="seg" role="group" aria-label="Modo de vista">
-        <button aria-pressed={u.rayosX} onClick={() => setUi3d({ rayosX: !u.rayosX })} title="Muros semitransparentes: las cañerías se ven a través">Rayos X</button>
-        <button aria-pressed={u.corte} onClick={() => setUi3d({ corte: !u.corte })} title="Corta los muros a 1,20 m, como un plano">Corte 1,20 m</button>
-        <button aria-pressed={u.techo} onClick={() => setUi3d({ techo: !u.techo })}>Techo</button>
-        <button aria-pressed={u.solo} disabled={!u.haySel && !u.solo} onClick={() => setUi3d({ soloSeleccion: !u.solo })}
-          title="Muestra solo el circuito seleccionado">Solo selección</button>
-      </span>
+      {/* "Capas" queda fuera de la tira: en celular la tira se desliza y recortaría su menú. */}
       <details className="v3d-menu">
         <summary>Capas</summary>
         <div className="v3d-menu-cuerpo">
@@ -39,6 +33,14 @@ export default function BarraVista() {
           ))}
         </div>
       </details>
+      <div className="v3d-tira">
+      <span className="seg" role="group" aria-label="Modo de vista">
+        <button aria-pressed={u.rayosX} onClick={() => setUi3d({ rayosX: !u.rayosX })} title="Muros semitransparentes: las cañerías se ven a través">Rayos X</button>
+        <button aria-pressed={u.corte} onClick={() => setUi3d({ corte: !u.corte })} title="Corta los muros a 1,20 m, como un plano">Corte 1,20 m</button>
+        <button aria-pressed={u.techo} onClick={() => setUi3d({ techo: !u.techo })}>Techo</button>
+        <button aria-pressed={u.solo} disabled={!u.haySel && !u.solo} onClick={() => setUi3d({ soloSeleccion: !u.solo })}
+          title="Muestra solo el circuito seleccionado">Solo selección</button>
+      </span>
       <span className="seg" role="group" aria-label="Cámara">
         {CAMARAS.map(([p, t]) => <button key={p} aria-pressed={u.camara.preset === p} onClick={() => pedir(p)}>{t}</button>)}
       </span>
@@ -47,6 +49,7 @@ export default function BarraVista() {
         <option value="">Ir al ambiente…</option>
         {ambientes.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
       </select>
+      </div>
     </div>
   );
 }

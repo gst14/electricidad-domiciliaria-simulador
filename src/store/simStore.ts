@@ -98,7 +98,7 @@ export const ui3dInicial = (): UI3D => ({
   seleccion: null, hover: null,
   capas: { casa: true, canerias: true, bocas: true, artefactos: true, luminarias: true, etiquetas: true },
   rayosX: false, corte: false, techo: false, soloSeleccion: false,
-  pestana: "circuitos", panelAbierto: true, hoja: "media",
+  pestana: "circuitos", panelAbierto: true, hoja: "cerrada", // en celular el panel arranca cerrado para ver la escena
   camara: { preset: "iso", n: 0 }, pose: null, destellos: [],
 });
 
