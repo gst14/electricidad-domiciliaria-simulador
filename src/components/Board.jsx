@@ -1,7 +1,9 @@
-function Module({ id, tag, rate, name, b, live, wide, isId, onLever, onTest }) {
+import { varColorCircuito } from "./colorCircuito";
+
+function Module({ id, tag, rate, name, b, live, wide, isId, color, onLever, onTest }) {
   const cls = ["mod", wide && "w2", isId && "id", !b.on && "off", b.tripped && "tripped", live && "live"].filter(Boolean).join(" ");
   return (
-    <div className={cls}>
+    <div className={cls} style={color ? { "--cc": color } : undefined}>
       <span className="tag">{tag}</span>
       <span className="flag">{b.on ? "I" : "O"}</span>
       <button className="lever" aria-label={`Palanca ${name}`} onClick={() => onLever(id)} />
@@ -24,9 +26,9 @@ export default function Board({ cfg, rt, onLever, onTest }) {
         <div className="rail">
           <Module id="tg" tag={`${tg.polos}P`} rate={`${tg.curva}${tg.amperes}`} name="Térmica general" b={rt.tg} live={rt.tg.on && rt.I > 0} wide onLever={onLever} />
           <Module id="id" tag={`${di.polos}P`} rate={`${di.amperes} A`} name={`Diferencial ${di.sensibilidad_ma} mA`} b={rt.id} live={live && rt.I > 0} wide isId onLever={onLever} onTest={onTest} />
-          {cfg.circuitos.map((k) => {
+          {cfg.circuitos.map((k, ci) => {
             const s = rt.c[k.id];
-            return <Module key={k.id} id={k.id} tag={k.tipo} rate={`${k.curva}${k.amperes}`} name={`${k.id} ${k.descripcion}`} b={s} live={live && s.on && s.I > 0} onLever={onLever} />;
+            return <Module key={k.id} id={k.id} tag={k.tipo} rate={`${k.curva}${k.amperes}`} name={`${k.id} ${k.descripcion}`} b={s} live={live && s.on && s.I > 0} color={varColorCircuito(ci)} onLever={onLever} />;
           })}
         </div>
       </div>

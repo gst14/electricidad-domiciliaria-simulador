@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { varColorCircuito } from "./colorCircuito";
 import { CATALOGO, etaDisparo, fmt, hms, izOf, loadA } from "../domain/simulacion/sim.js";
 
 const LEAKS = [[0, "Sana"], [15, "Humedad 15 mA"], [60, "Falla 60 mA"]];
@@ -11,7 +12,7 @@ export default function CircuitCard({ cfg, rt, k, ci, actions }) {
   return (
     <article className={"card" + (s.tripped ? " down" : "")}>
       <div className="chead">
-        <span className="cid">{k.id}</span><span className="ctitle">{k.descripcion}</span><span className={`chip ${k.tipo}`}>{k.tipo}</span>
+        <span className="cdot" style={{ "--cc": varColorCircuito(ci) }} aria-hidden="true" /><span className="cid">{k.id}</span><span className="ctitle">{k.descripcion}</span><span className={`chip ${k.tipo}`}>{k.tipo}</span>
         <span className={"pill" + (s.tripped ? " trip" : on ? "" : " off")}>{s.tripped ? "Disparó" : on ? "Con tensión" : "Sin tensión"}</span>
       </div>
       <div className="spec">{k.amperes} A · curva {k.curva} · {fmt(k.seccion_mm2)} mm² (Iz ≈ {iz} A) · {k.bocas} boca{k.bocas === 1 ? "" : "s"}</div>

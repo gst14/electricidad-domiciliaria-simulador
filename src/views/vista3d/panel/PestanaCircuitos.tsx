@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { varColorCircuito } from "../../../components/colorCircuito";
 import { CATALOGO, fmt, hms, IZ, loadA, validate } from "../../../domain/simulacion";
 import type { Circuito } from "../../../domain/simulacion";
 import { simStore, useSimStore } from "../../../store/simStore";
@@ -78,7 +80,7 @@ function FichaCircuito({ k, ci, avisos }: { k: Circuito; ci: number; avisos: [st
     <details ref={ref} className={"ficha" + (seleccionado ? " sel" : "")} open={abierto}
       onToggle={(e) => setAbierto((e.target as HTMLDetailsElement).open)}>
       <summary>
-        <span className="cid">{k.id}</span><span className="ctitle">{k.descripcion}</span><span className={`chip ${k.tipo}`}>{k.tipo}</span>
+        <span className="cdot" style={{ "--cc": varColorCircuito(ci) } as CSSProperties} aria-hidden="true" /><span className="cid">{k.id}</span><span className="ctitle">{k.descripcion}</span><span className={`chip ${k.tipo}`}>{k.tipo}</span>
       </summary>
       <div className="ficha-cuerpo">
         <button className="link" aria-pressed={seleccionado}

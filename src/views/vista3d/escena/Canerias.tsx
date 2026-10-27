@@ -13,7 +13,6 @@ import { colorNivel, estadoVisualCircuito, intensidadPulso } from "../mapeoVisua
 
 export const RADIO_CANO = 0.011;
 const GUIONES_POR_M = 4;
-const COLOR_FLUJO = new Color("#FFE7B0");
 const BLANCO = new Color("#ffffff");
 
 /* Recorridos agrupados por circuito, con una firma para no rehacer geometría de circuitos sin cambios. */
@@ -67,7 +66,9 @@ function CanoCircuito({ circuitoId, firma, puntos }: { circuitoId: string; firma
     const p = intensidadPulso(e.pulso, clock.elapsedTime, reducido);
     if (e.pulso !== "no") tmp.lerp(BLANCO, 0.4 * p);
     m.color.copy(tmp);
-    m.emissiveIntensity = e.flujo > 0 ? 1.1 : 0;
+    // Los guiones del flujo brillan con el mismo color del caño, así cada circuito se distingue.
+    m.emissive.copy(tmp);
+    m.emissiveIntensity = e.flujo > 0 ? 0.9 : 0;
     if (e.flujo > 0 && rt.running && !reducido) flujo.offset.x -= e.flujo * GUIONES_POR_M * dt;
     const op = opacidadSeleccion(ui3d.seleccion, circuitoId);
     m.opacity = op;
@@ -88,7 +89,7 @@ function CanoCircuito({ circuitoId, firma, puntos }: { circuitoId: string; firma
       <mesh ref={cano} geometry={geo} castShadow name={"cano-" + circuitoId} userData={{ seleccion: sel }}
         onClick={(e) => { e.stopPropagation(); simStore.getState().actions.setUi3d({ seleccion: sel, pestana: "circuitos" }); }}
         {...eventosHover(sel)}>
-        <meshStandardMaterial color={colores[circuitoId]} roughness={0.5} emissive={COLOR_FLUJO} emissiveMap={flujo} emissiveIntensity={0} transparent />
+        <meshStandardMaterial color={colores[circuitoId]} roughness={0.5} emissiveMap={flujo} emissiveIntensity={0} transparent />
       </mesh>
       </Select>
       <mesh ref={halo} geometry={geoHalo} visible={false} raycast={() => null} renderOrder={3}>

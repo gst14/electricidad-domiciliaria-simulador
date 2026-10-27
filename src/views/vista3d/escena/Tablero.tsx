@@ -43,9 +43,10 @@ function Modulo({ clave, x, modulos, rotulo, color }: ModuloProps) {
         <boxGeometry args={[w * 0.96, ALTO_MOD, 0.06]} />
         <meshStandardMaterial color={paleta.module} roughness={0.6} />
       </mesh>
-      <mesh position={[0, ALTO_MOD * 0.38, 0.031]}>
-        <boxGeometry args={[w * 0.9, 0.008, 0.002]} />
-        <meshBasicMaterial color={color} />
+      {/* Franja con el color del circuito, sin tone mapping para que el tono sea el del tema */}
+      <mesh position={[0, ALTO_MOD * 0.36, 0.031]}>
+        <boxGeometry args={[w * 0.92, 0.016, 0.002]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
       <group ref={palanca} position={[0, 0, 0.03]}>
         <mesh position={[0, 0, 0.014]} name={"palanca-" + clave}
@@ -73,8 +74,9 @@ export default function Tablero({ posicion }: { posicion: Vec3 }) {
   const alerta = useSimStore((s) => (s.rt.tg.tripped ? "Térmica general disparada: toda la casa sin tensión" : s.rt.id.tripped ? "Diferencial disparado: toda la casa sin tensión" : ""));
   const tg = cfg.tablero.termica_general, di = cfg.tablero.diferencial, pe = cfg.puesta_tierra;
   const mods = [
-    { clave: "tg", modulos: 2, rotulo: `TG ${tg.curva}${tg.amperes}`, color: paleta.fase },
-    { clave: "id", modulos: 2, rotulo: `ID ${di.sensibilidad_ma} mA`, color: paleta.neutro },
+    // TG e ID en gris: el color queda reservado para identificar circuitos.
+    { clave: "tg", modulos: 2, rotulo: `TG ${tg.curva}${tg.amperes}`, color: paleta.muted },
+    { clave: "id", modulos: 2, rotulo: `ID ${di.sensibilidad_ma} mA`, color: paleta.muted },
     ...cfg.circuitos.map((k) => ({ clave: k.id, modulos: 1, rotulo: k.id, color: colores[k.id] })),
   ];
   const ancho = mods.reduce((s, m) => s + m.modulos * MODULO, 0) + 0.08;
