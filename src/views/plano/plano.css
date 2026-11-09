@@ -1,0 +1,14 @@
+.plano{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,320px);gap:24px;align-items:start}
+.plano-lienzo,.plano-edicion,.plano-destino{display:grid;gap:12px;min-width:0}
+.plano-lienzo svg{display:block;width:100%;height:min(62vh,620px);background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.plano-lienzo text{fill:var(--ink)}
+.plano-ambiente{fill:var(--module);stroke:var(--rail);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.plano-canalizacion{fill:none;stroke-width:2;stroke-opacity:.65;vector-effect:non-scaling-stroke}
+.plano-boca,.plano-tablero{stroke:var(--ink);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.plano-tablero{fill:var(--ink)}
+.plano-edicion p{margin:0}
+.plano-edicion label{display:grid;gap:4px;font-size:13px}
+.plano-edicion select,.plano-edicion input{width:100%;min-width:0}
+.plano-coordenadas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.plano-destino button{justify-self:start}
+@media (max-width:760px){.plano{grid-template-columns:minmax(0,1fr)}.plano-lienzo svg{height:min(52vh,430px)}}

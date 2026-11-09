@@ -47,12 +47,28 @@ export function generarAmbientes(superficie: number): Ambiente[] {
 /* ---------- bocas ---------- */
 type Muro = 0 | 1 | 2 | 3; // 0 frente (z mín), 1 derecha (x máx), 2 fondo (z máx), 3 izquierda (x mín)
 function sobreMuro(a: Ambiente, muro: Muro, t: number, y: number): { posicion: Vec3; normal: Vec3 } {
+  const despejeX = Math.min(DESPEGUE, a.ancho / 2), despejeZ = Math.min(DESPEGUE, a.largo / 2);
   switch (muro) {
-    case 0: return { posicion: [r(a.x + a.ancho * t), y, r(a.z + DESPEGUE)], normal: [0, 0, 1] };
-    case 1: return { posicion: [r(a.x + a.ancho - DESPEGUE), y, r(a.z + a.largo * t)], normal: [-1, 0, 0] };
-    case 2: return { posicion: [r(a.x + a.ancho * (1 - t)), y, r(a.z + a.largo - DESPEGUE)], normal: [0, 0, -1] };
-    default: return { posicion: [r(a.x + DESPEGUE), y, r(a.z + a.largo * (1 - t))], normal: [1, 0, 0] };
+    case 0: return { posicion: [r(a.x + a.ancho * t), y, r(a.z + despejeZ)], normal: [0, 0, 1] };
+    case 1: return { posicion: [r(a.x + a.ancho - despejeX), y, r(a.z + a.largo * t)], normal: [-1, 0, 0] };
+    case 2: return { posicion: [r(a.x + a.ancho * (1 - t)), y, r(a.z + a.largo - despejeZ)], normal: [0, 0, -1] };
+    default: return { posicion: [r(a.x + despejeX), y, r(a.z + a.largo * (1 - t))], normal: [1, 0, 0] };
   }
+}
+
+/* Ubica una boca por coordenadas de planta relativas al ambiente, en metros. */
+export function posicionarBoca(boca: Boca, a: Ambiente, x: number, z: number): Boca {
+  const dx = Math.max(0, Math.min(a.ancho, x));
+  const dz = Math.max(0, Math.min(a.largo, z));
+  if (boca.tipo === "centro") {
+    return { ...boca, ambienteId: a.id, posicion: [r(a.x + dx), a.alto, r(a.z + dz)] };
+  }
+
+  const distancias = [dz, a.ancho - dx, a.largo - dz, dx];
+  const muro = distancias.indexOf(Math.min(...distancias)) as Muro;
+  const fracciones = [dx / a.ancho, dz / a.largo, 1 - dx / a.ancho, 1 - dz / a.largo];
+  const y = Math.min(a.alto, Math.max(0, boca.posicion[1]));
+  return { ...boca, ambienteId: a.id, ...sobreMuro(a, muro, fracciones[muro], y) };
 }
 
 function alturaDedicada(k: Circuito): number {

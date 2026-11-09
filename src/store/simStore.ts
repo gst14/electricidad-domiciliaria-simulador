@@ -3,7 +3,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import { CATALOGO, EJEMPLO, freshRuntime, logEv, normalize, step, trip } from "../domain/simulacion";
 import type { Carga, Circuito, Config, Proteccion, Runtime } from "../domain/simulacion";
-import { generarLayout } from "../domain/layout3d/generarLayout";
+import { generarLayout, posicionarBoca } from "../domain/layout3d/generarLayout";
 import type { Layout3D } from "../domain/layout3d/tipos";
 
 export const KEY = "tablerista-cfg";
@@ -21,7 +21,7 @@ const leer = (saved: string | null) => {
 export const cfgInicial = (): Config => leer(storage.get());
 export const baseInicial = (): Config => leer(storageBase.get());
 
-export type Vista = "tablero" | "3d";
+export type Vista = "tablero" | "plano" | "3d";
 export type ClaveProteccion = "tg" | "id" | string;
 
 export type Capa = "casa" | "canerias" | "bocas" | "artefactos" | "luminarias" | "etiquetas";
@@ -79,6 +79,7 @@ export interface Acciones {
   applyText(txt: string): string | null;
   restoreSample(): void;
   setVista(v: Vista): void;
+  moverBoca(id: string, ambienteId: string, x: number, z: number): boolean;
   setUi3d(patch: Partial<UI3D> | ((u: UI3D) => Partial<UI3D>)): void;
 }
 
@@ -180,6 +181,7 @@ export function crearSimStore(cfg: Config = cfgInicial(), base: Config = baseIni
       applyText: (txt) => {
         try {
           const next = normalize(JSON.parse(txt));
+          cacheLayout = null;
           set({ base: structuredClone(next) });
           commit(next, freshRuntime(next, get().rt));
           logEv(get().rt, "ok", `Configuración aplicada: ${next.circuitos.length} circuitos.`);
@@ -192,9 +194,30 @@ export function crearSimStore(cfg: Config = cfgInicial(), base: Config = baseIni
         const next = normalize(structuredClone(EJEMPLO));
         const rt = freshRuntime(next, get().rt);
         rt.simT = 0; rt.kwh = 0; rt.log = [];
+        cacheLayout = null;
         set({ base: structuredClone(next) });
         commit(next, rt);
         logEv(rt, "ok", "Ejemplo restaurado.");
+      },
+      moverBoca: (id, ambienteId, x, z) => {
+        const { cfg } = get();
+        if ((Array.isArray(cfg.layout3d?.recorridos) && cfg.layout3d.recorridos.length > 0) || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+        const layout = selectLayout3d({ cfg });
+        const boca = layout.bocas.find((b) => b.id === id);
+        const ambiente = layout.ambientes.find((a) => a.id === ambienteId);
+        if (!boca || !ambiente) return false;
+
+        const movida = posicionarBoca(boca, ambiente, x, z);
+        const cargasExplicitas = new Set((Array.isArray(cfg.layout3d?.bocas) ? cfg.layout3d.bocas : [])
+          .filter((b) => b?.cargaIndex !== undefined).map((b) => b.circuitoId));
+        const bocas = layout.bocas.map((b) => {
+          const actual = b === boca ? movida : b;
+          if (cargasExplicitas.has(b.circuitoId)) return actual;
+          const { cargaIndex: _derivada, ...ubicacion } = actual;
+          return ubicacion;
+        });
+        commit({ ...cfg, layout3d: { ...cfg.layout3d, ambientes: layout.ambientes, tablero: layout.tablero, bocas } });
+        return true;
       },
       setVista: (vista) => set((s) => ({ ui: { ...s.ui, vista } })),
       setUi3d: (patch) => set((s) => ({ ui3d: { ...s.ui3d, ...(typeof patch === "function" ? patch(s.ui3d) : patch) } })),

@@ -9,12 +9,19 @@ import { EventLog, Header, Meter, Status, Validation } from "./components/Panels
 
 const Vista3D = lazy(() => import("./views/vista3d/Vista3D"));
 
-const vistaDeHash = () => (location.hash === "#3d" ? "3d" : "tablero");
+const Plano = lazy(() => import("./views/plano/Plano"));
+
+function vistaDeHash() {
+  if (location.hash === "#3d") return "3d";
+  if (location.hash === "#plano") return "plano";
+  return "tablero";
+}
 
 function Vistas({ vista }) {
   return (
     <nav className="vistas" aria-label="Vistas">
       <a href="#tablero" aria-current={vista === "tablero" ? "page" : undefined}>Tablero</a>
+      <a href="#plano" aria-current={vista === "plano" ? "page" : undefined}>Plano</a>
       <a href="#3d" aria-current={vista === "3d" ? "page" : undefined}>Vista 3D</a>
     </nav>
   );
@@ -40,6 +47,10 @@ export default function App() {
       {vista === "3d" ? (
         <Suspense fallback={<div className="panel cargando" role="status">Cargando la vista 3D…</div>}>
           <Vista3D />
+        </Suspense>
+      ) : vista === "plano" ? (
+        <Suspense fallback={<div className="panel cargando" role="status">Cargando el plano…</div>}>
+          <Plano />
         </Suspense>
       ) : (
         <>

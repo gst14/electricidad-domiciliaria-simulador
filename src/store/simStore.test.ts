@@ -82,6 +82,40 @@ describe("simStore", () => {
     expect(x).toEqual(y);
   });
 
+  it("reubica una boca, recalcula su recorrido y conserva el circuito al reabrir", () => {
+    const st = nuevo();
+    const inicial = st.getState();
+    const layout = selectLayout3d(inicial);
+    const boca = layout.bocas.find((b) => b.circuitoId === "C2")!;
+    const destino = layout.ambientes.find((a) => a.id !== boca.ambienteId)!;
+
+    expect(inicial.actions.moverBoca(boca.id, destino.id, destino.ancho / 2, 0)).toBe(true);
+    const editado = st.getState();
+    const actual = selectLayout3d(editado);
+    const movida = actual.bocas.find((b) => b.id === boca.id)!;
+    expect(movida.ambienteId).toBe(destino.id);
+    expect(movida.circuitoId).toBe(boca.circuitoId);
+    expect(movida.posicion[2]).toBeCloseTo(destino.z + 0.02);
+    expect(movida.normal).toEqual([0, 0, 1]);
+    expect(actual.recorridos?.find((r) => r.bocaId === boca.id)?.puntos.at(-1)).toEqual(movida.posicion);
+    expect(editado.cfg.circuitos).toBe(inicial.cfg.circuitos);
+    expect(editado.rt).toBe(inicial.rt);
+    expect(selectLayout3d(crearSimStore(normalize(JSON.parse(JSON.stringify(editado.cfg)))).getState()).bocas)
+      .toContainEqual(movida);
+    inicial.actions.restoreSample();
+    expect(selectLayout3d(st.getState()).bocas).toContainEqual(boca);
+  });
+
+  it("mantiene intactos los proyectos con recorridos manuales", () => {
+    const st = nuevo();
+    const layout = selectLayout3d(st.getState());
+    const cfg = { ...st.getState().cfg, layout3d: layout };
+    const importado = crearSimStore(cfg);
+    const [boca] = layout.bocas;
+    expect(importado.getState().actions.moverBoca(boca.id, boca.ambienteId, 1, 1)).toBe(false);
+    expect(importado.getState().cfg).toBe(cfg);
+  });
+
   it("el layout 3D no cambia al encender cargas o cambiar amperes, sí al cambiar bocas", () => {
     const st = nuevo(), a = st.getState().actions;
     const L0 = selectLayout3d(st.getState());
