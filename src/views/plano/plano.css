@@ -12,3 +12,8 @@
 .plano-coordenadas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .plano-destino button{justify-self:start}
 @media (max-width:760px){.plano{grid-template-columns:minmax(0,1fr)}.plano-lienzo svg{height:min(52vh,430px)}}
+
+.plano-medidas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.plano-edicion input[type=text]{background:var(--module);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.plano-colocando{cursor:crosshair}
+.plano-punto{fill:none;stroke:var(--ink);stroke-width:2;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;pointer-events:none}

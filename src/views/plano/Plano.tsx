@@ -1,7 +1,11 @@
 import { useState } from "react";
+import type { MouseEvent } from "react";
 import { varColorCircuito } from "../../components/colorCircuito";
+import { superficieDibujada, tieneRecorridosManuales } from "../../domain/layout3d/editarPlano";
 import type { Ambiente, Boca } from "../../domain/layout3d/tipos";
 import { selectLayout3d, useSimStore } from "../../store/simStore";
+import { AltaBoca, Medidas } from "./EdicionPlano";
+import type { PuntoPlano } from "./EdicionPlano";
 import "./plano.css";
 
 const etiquetas: Record<Boca["tipo"], string> = {
@@ -47,11 +51,16 @@ function Destino({ boca, ambientes, mover }: {
 export default function Plano() {
   const layout = useSimStore(selectLayout3d);
   const cfg = useSimStore((s) => s.cfg);
-  const moverBoca = useSimStore((s) => s.actions.moverBoca);
+  const { moverBoca, agregarBoca, adoptarSuperficieDibujada } = useSimStore((s) => s.actions);
   const [id, setId] = useState("");
   const [aviso, setAviso] = useState("");
+  const [punto, setPunto] = useState<PuntoPlano | null>(null);
   const seleccion = layout.bocas.find((b) => b.id === id);
-  const recorridosManuales = Array.isArray(cfg.layout3d?.recorridos) && cfg.layout3d.recorridos.length > 0;
+  const recorridosManuales = tieneRecorridosManuales(cfg);
+  const dibujada = superficieDibujada(layout.ambientes);
+  const destino = punto && layout.ambientes.find((a) => a.id === punto.ambienteId);
+  const xPunto = punto?.x ? Number(punto.x) : NaN;
+  const zPunto = punto?.z ? Number(punto.z) : NaN;
   const izquierda = Math.min(...layout.ambientes.map((a) => a.x));
   const arriba = Math.min(...layout.ambientes.map((a) => a.z));
   const ancho = Math.max(...layout.ambientes.map((a) => a.x + a.ancho)) - izquierda;
@@ -67,11 +76,23 @@ export default function Plano() {
       : "No se pudo guardar esta ubicación.");
   }
 
+  function elegirPunto(event: MouseEvent<SVGSVGElement>) {
+    if (!punto || recorridosManuales) return;
+    const matriz = event.currentTarget.getScreenCTM();
+    if (!matriz) return;
+    const { x, y: z } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matriz.inverse());
+    const ambiente = layout.ambientes.find((a) => x >= a.x && x <= a.x + a.ancho && z >= a.z && z <= a.z + a.largo);
+    if (!ambiente) return;
+    const local = (v: number, origen: number, maximo: number) => String(Math.min(maximo, Math.round((v - origen) * 1000) / 1000));
+    setPunto({ ambienteId: ambiente.id, x: local(x, ambiente.x, ambiente.ancho), z: local(z, ambiente.z, ambiente.largo) });
+  }
+
   return (
     <section className="panel plano" aria-labelledby="plano-titulo">
       <div className="plano-lienzo">
         <h2 id="plano-titulo">Plano eléctrico 2D</h2>
         <svg viewBox={`${izquierda - margen} ${arriba - margen} ${ancho + 2 * margen} ${largo + 2 * margen}`}
+          className={punto ? "plano-colocando" : undefined} onClick={punto && !recorridosManuales ? elegirPunto : undefined}
           role="img" aria-label="Planta con ambientes, tablero, canalizaciones y bocas">
           {layout.ambientes.map((a) => (
             <g key={a.id}>
@@ -92,15 +113,50 @@ export default function Plano() {
           ))}
           <rect x={layout.tablero.posicion[0] - escala / 65} y={layout.tablero.posicion[2] - escala / 65}
             width={escala / 32.5} height={escala / 32.5} className="plano-tablero"><title>Tablero</title></rect>
+          {destino && xPunto >= 0 && xPunto <= destino.ancho && zPunto >= 0 && zPunto <= destino.largo && (
+            <circle className="plano-punto" cx={destino.x + xPunto} cy={destino.z + zPunto} r={escala / 48}>
+              <title>Punto elegido</title>
+            </circle>
+          )}
         </svg>
+        <div className="row small">
+          <span>Superficie dibujada <strong>{dibujada.toLocaleString("es-AR")} m²</strong></span>
+          <span>· Superficie declarada <strong>{cfg.superficie_m2.toLocaleString("es-AR")} m²</strong></span>
+          {!recorridosManuales && cfg.layout3d?.modo === "editado" && cfg.superficie_m2 !== dibujada && (
+            <button type="button" onClick={() => {
+              adoptarSuperficieDibujada();
+              setAviso("La superficie dibujada ahora es la declarada.");
+            }}>Usar superficie dibujada</button>
+          )}
+        </div>
         <div className="row small" aria-label="Colores de los circuitos">
           {cfg.circuitos.map((c) => <span key={c.id}><span aria-hidden="true" style={{ color: color(c.id) }}>● </span>{c.id} · {c.descripcion}</span>)}
         </div>
       </div>
       <div className="plano-edicion">
+        {recorridosManuales ? <p className="small muted">Este plano es de solo lectura porque contiene recorridos manuales.</p> : (
+          <>
+            <h2>Editar ambiente</h2>
+            <Medidas ambientes={layout.ambientes} avisar={setAviso} />
+            <div className="row">
+              <h2>Colocar una boca</h2>
+              <button type="button" aria-expanded={!!punto} onClick={() => {
+                setPunto(punto ? null : { ambienteId: layout.ambientes[0].id, x: "0", z: "0" });
+                setAviso("");
+              }}>{punto ? "Cancelar alta" : "Agregar boca"}</button>
+            </div>
+            {punto && (
+              <AltaBoca ambientes={layout.ambientes} circuitos={cfg.circuitos} punto={punto} cambiarPunto={setPunto}
+                guardar={(circuitoId, tipo, ubicacion) => {
+                  const error = agregarBoca(circuitoId, tipo, ubicacion.ambienteId, Number(ubicacion.x), Number(ubicacion.z));
+                  setAviso(error ?? "Boca agregada al circuito.");
+                  if (!error) setPunto(null);
+                }} />
+            )}
+          </>
+        )}
         <h2>Reubicar una boca</h2>
-        <p className="small muted">Elegí una boca y su destino. Las bocas de muro se ajustan al borde más cercano. Los centros de luz quedan en el cielorraso.</p>
-        {recorridosManuales && <p className="small muted">La edición de ubicaciones está deshabilitada para proyectos con recorridos manuales.</p>}
+        <p className="small muted">Las bocas de muro se ajustan al borde más cercano. Los centros de luz quedan en el cielorraso.</p>
         <label>Boca
           <select value={seleccion?.id ?? ""} onChange={(event) => { setId(event.target.value); setAviso(""); }}>
             <option value="">Seleccioná una boca</option>

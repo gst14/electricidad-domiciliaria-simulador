@@ -113,7 +113,74 @@ describe("simStore", () => {
     const importado = crearSimStore(cfg);
     const [boca] = layout.bocas;
     expect(importado.getState().actions.moverBoca(boca.id, boca.ambienteId, 1, 1)).toBe(false);
+    expect(importado.getState().actions.cambiarMedidas(layout.ambientes[0].id, layout.ambientes[0])).toContain("manuales");
+    expect(importado.getState().actions.agregarBoca("C2", "toma", boca.ambienteId, 1, 1)).toContain("manuales");
     expect(importado.getState().cfg).toBe(cfg);
+  });
+
+  it("redimensiona un ambiente sin despegar las bocas de sus paredes", () => {
+    const st = nuevo();
+    const { actions, cfg } = st.getState();
+    const original = selectLayout3d(st.getState());
+    const ambiente = original.ambientes[0];
+    const ancho = ambiente.ancho / 2;
+    expect(actions.moverBoca("C2-b01", ambiente.id, ambiente.ancho / 4, 0)).toBe(true);
+    const anterior = selectLayout3d(st.getState());
+    expect(actions.cambiarMedidas(ambiente.id, { ...ambiente, nombre: "Sala", ancho, alto: 3 })).toBeNull();
+
+    const layout = selectLayout3d(st.getState());
+    const boca = layout.bocas.find((b) => b.id === "C2-b01")!;
+    expect(boca.posicion).toEqual([expect.closeTo(ambiente.x + ancho / 4, 2), 0.3, ambiente.z + 0.02]);
+    expect(boca.normal).toEqual([0, 0, 1]);
+    expect(layout.bocas.filter((b) => b.ambienteId === ambiente.id && b.tipo === "centro")
+      .every((b) => b.posicion[1] === 3)).toBe(true);
+    expect(layout.tablero.posicion[0]).toBeCloseTo(anterior.tablero.posicion[0] / 2);
+    expect(layout.ambientes[0]).toMatchObject({ nombre: "Sala", ancho, alto: 3 });
+    expect(st.getState().cfg.superficie_m2).toBe(cfg.superficie_m2);
+    actions.adoptarSuperficieDibujada();
+    expect(st.getState().cfg.superficie_m2).toBeLessThan(cfg.superficie_m2);
+
+    const recargado = nuevo();
+    expect(recargado.getState().actions.applyText(JSON.stringify(st.getState().cfg))).toBeNull();
+    expect(selectLayout3d(recargado.getState())).toEqual(layout);
+  });
+
+  it("rechaza solapamientos e intentos de alta inválidos antes de guardar", () => {
+    const st = nuevo();
+    const { actions, cfg } = st.getState();
+    const [a, vecino] = selectLayout3d(st.getState()).ambientes;
+    expect(actions.cambiarMedidas(a.id, { ...a, ancho: a.ancho * 2 })).toContain(vecino.nombre);
+    expect(actions.agregarBoca("C2", "centro", a.id, 1, 1)).toContain("compatible");
+    expect(actions.agregarBoca("C2", "toma", a.id, -1, 0)).toContain("ubicación");
+    expect(st.getState().cfg).toBe(cfg);
+  });
+
+  it("guarda un alta como geometría del circuito y deriva su cantidad también al importar", () => {
+    const st = nuevo();
+    const { actions, cfg, rt } = st.getState();
+    const { ambientes, bocas } = selectLayout3d(st.getState());
+    const ambiente = ambientes[0];
+    expect(actions.agregarBoca("C2", "toma", ambiente.id, 1, 0)).toBeNull();
+    const editado = st.getState().cfg;
+    const nueva = editado.layout3d?.bocas.find((b) => !bocas.some((vieja) => vieja.id === b.id));
+    expect(nueva).toMatchObject({ circuitoId: "C2", tipo: "toma", ambienteId: ambiente.id });
+    expect(selectLayout3d(st.getState()).recorridos?.find((r) => r.bocaId === nueva?.id)?.puntos.at(-1)).toEqual(nueva?.posicion);
+    const cantidad = cfg.circuitos[C2].bocas + 1;
+    expect(st.getState().rt).toBe(rt);
+    expect(circuitoModificado(st.getState(), C2)).toBe(false);
+    actions.setCircuito(C2, { amperes: 20, bocas: 0 });
+    expect(st.getState().cfg.circuitos[C2]).toMatchObject({ amperes: 20, bocas: cantidad });
+    actions.resetCircuito(C2);
+    expect(st.getState().cfg.circuitos[C2]).toMatchObject({ amperes: cfg.circuitos[C2].amperes, bocas: cantidad });
+
+    const archivo = structuredClone(st.getState().cfg);
+    archivo.circuitos[C2].bocas = 100;
+    expect(actions.applyText(JSON.stringify(archivo))).toBeNull();
+    expect(st.getState().cfg.circuitos[C2].bocas).toBe(cantidad);
+    expect(st.getState().cfg.layout3d?.bocas).toContainEqual(nueva);
+    archivo.layout3d!.bocas.push(archivo.layout3d!.bocas[0]);
+    expect(actions.applyText(JSON.stringify(archivo))).toContain("repetidas");
+    expect(st.getState().cfg.layout3d?.bocas).toContainEqual(nueva);
   });
 
   it("el layout 3D no cambia al encender cargas o cambiar amperes, sí al cambiar bocas", () => {

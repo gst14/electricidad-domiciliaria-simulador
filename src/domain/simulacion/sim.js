@@ -1,3 +1,5 @@
+import { sincronizarPlanoEditado } from "../layout3d/generarLayout";
+
 export const IZ={1:12,1.5:15,2.5:21,4:28,6:36,10:50,16:66,25:84};
 export const MAG={B:4,C:8,D:15};
 export const CATALOGO=[
@@ -47,7 +49,7 @@ export function normalize(c){
       cargas:(Array.isArray(k.cargas)?k.cargas:[]).map(a=>({nombre:a.nombre||"Carga",potencia_w:Number(a.potencia_w)||0,
         ...(a.fp&&Number(a.fp)!==1?{fp:Number(a.fp)}:{}),encendida:!!a.encendida}))});
   });
-  return out;
+  return sincronizarPlanoEditado(out);
 }
 export function freshRuntime(cfg,old){
   const r={tg:{on:true,tripped:false,heat:0},id:{on:true,tripped:false,heat:0},c:{},simT:old?.simT||0,kwh:old?.kwh||0,

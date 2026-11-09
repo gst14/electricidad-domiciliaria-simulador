@@ -3,7 +3,9 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import { CATALOGO, EJEMPLO, freshRuntime, logEv, normalize, step, trip } from "../domain/simulacion";
 import type { Carga, Circuito, Config, Proteccion, Runtime } from "../domain/simulacion";
-import { generarLayout, posicionarBoca } from "../domain/layout3d/generarLayout";
+import { ALTURA_TOMA, claseDe, generarLayout, posicionarBoca } from "../domain/layout3d/generarLayout";
+import { editarAmbiente, guardarPlano, superficieDibujada, tieneRecorridosManuales } from "../domain/layout3d/editarPlano";
+import type { MedidasAmbiente, TipoBocaNueva } from "../domain/layout3d/editarPlano";
 import type { Layout3D } from "../domain/layout3d/tipos";
 
 export const KEY = "tablerista-cfg";
@@ -80,6 +82,9 @@ export interface Acciones {
   restoreSample(): void;
   setVista(v: Vista): void;
   moverBoca(id: string, ambienteId: string, x: number, z: number): boolean;
+  cambiarMedidas(id: string, medidas: MedidasAmbiente): string | null;
+  agregarBoca(circuitoId: string, tipo: TipoBocaNueva, ambienteId: string, x: number, z: number): string | null;
+  adoptarSuperficieDibujada(): void;
   setUi3d(patch: Partial<UI3D> | ((u: UI3D) => Partial<UI3D>)): void;
 }
 
@@ -113,6 +118,17 @@ export function crearSimStore(cfg: Config = cfgInicial(), base: Config = baseIni
       bump();
     };
     const editCfg = (fn: (c: Config) => void) => { const next = structuredClone(get().cfg); fn(next); commit(next); };
+    const editarPlano = (editar: (layout: Layout3D) => Layout3D): string | null => {
+      const { cfg } = get();
+      if (tieneRecorridosManuales(cfg)) return "Este plano contiene recorridos manuales.";
+      try {
+        const layout = editar(selectLayout3d({ cfg }));
+        commit(guardarPlano(cfg, layout));
+        return null;
+      } catch (err) {
+        return (err as Error).message;
+      }
+    };
     const breaker = (rt: Runtime, key: ClaveProteccion): Proteccion => (key === "tg" ? rt.tg : key === "id" ? rt.id : rt.c[key]);
     const nombre = (key: ClaveProteccion) => (key === "tg" ? "Térmica general" : key === "id" ? "Diferencial" : "Térmica " + key);
 
@@ -138,12 +154,20 @@ export function crearSimStore(cfg: Config = cfgInicial(), base: Config = baseIni
       removeLoad: (ci, ai) => editCfg((c) => { c.circuitos[ci].cargas.splice(ai, 1); }),
       toggleLoad: (ci, ai, on) => editCfg((c) => { c.circuitos[ci].cargas[ai].encendida = on; }),
       setCarga: (ci, ai, patch) => editCfg((c) => { Object.assign(c.circuitos[ci].cargas[ai], patch); }),
-      setCircuito: (ci, patch) => editCfg((c) => { Object.assign(c.circuitos[ci], patch); }),
+      setCircuito: (ci, patch) => editCfg((c) => {
+        const circuito = c.circuitos[ci];
+        const bocas = circuito.bocas;
+        Object.assign(circuito, patch);
+        if (c.layout3d?.modo === "editado") circuito.bocas = bocas;
+      }),
       resetCircuito: (ci) => {
         const k = get().cfg.circuitos[ci], orig = circuitoBase(get(), ci);
         if (!orig) return;
         logEv(get().rt, "ok", `${k.id}: configuración restablecida a la del proyecto.`);
-        editCfg((c) => { c.circuitos[ci] = structuredClone(orig); });
+        editCfg((c) => {
+          c.circuitos[ci] = structuredClone(orig);
+          if (c.layout3d?.modo === "editado") c.circuitos[ci].bocas = k.bocas;
+        });
       },
       setTablero: (patch) => editCfg((c) => {
         Object.assign(c.tablero.termica_general, patch.termica_general);
@@ -199,25 +223,42 @@ export function crearSimStore(cfg: Config = cfgInicial(), base: Config = baseIni
         commit(next, rt);
         logEv(rt, "ok", "Ejemplo restaurado.");
       },
-      moverBoca: (id, ambienteId, x, z) => {
-        const { cfg } = get();
-        if ((Array.isArray(cfg.layout3d?.recorridos) && cfg.layout3d.recorridos.length > 0) || !Number.isFinite(x) || !Number.isFinite(z)) return false;
-        const layout = selectLayout3d({ cfg });
+      moverBoca: (id, ambienteId, x, z) => editarPlano((layout) => {
         const boca = layout.bocas.find((b) => b.id === id);
         const ambiente = layout.ambientes.find((a) => a.id === ambienteId);
-        if (!boca || !ambiente) return false;
-
+        if (!boca || !ambiente || !Number.isFinite(x) || !Number.isFinite(z)) {
+          throw new Error("La ubicación de la boca no es válida.");
+        }
         const movida = posicionarBoca(boca, ambiente, x, z);
-        const cargasExplicitas = new Set((Array.isArray(cfg.layout3d?.bocas) ? cfg.layout3d.bocas : [])
-          .filter((b) => b?.cargaIndex !== undefined).map((b) => b.circuitoId));
-        const bocas = layout.bocas.map((b) => {
-          const actual = b === boca ? movida : b;
-          if (cargasExplicitas.has(b.circuitoId)) return actual;
-          const { cargaIndex: _derivada, ...ubicacion } = actual;
-          return ubicacion;
-        });
-        commit({ ...cfg, layout3d: { ...cfg.layout3d, ambientes: layout.ambientes, tablero: layout.tablero, bocas } });
-        return true;
+        return { ...layout, bocas: layout.bocas.map((b) => b === boca ? movida : b) };
+      }) === null,
+      cambiarMedidas: (id, medidas) => editarPlano((layout) => editarAmbiente(layout, id, medidas)),
+      agregarBoca: (circuitoId, tipo, ambienteId, x, z) => editarPlano((layout) => {
+        const circuito = get().cfg.circuitos.find((c) => c.id === circuitoId);
+        const ambiente = layout.ambientes.find((a) => a.id === ambienteId);
+        if (!circuito || !ambiente || !Number.isFinite(x) || !Number.isFinite(z)
+            || x < 0 || z < 0 || x > ambiente.ancho || z > ambiente.largo) {
+          throw new Error("Elegí un circuito y una ubicación dentro del ambiente.");
+        }
+        if (tipo !== (claseDe(circuito.tipo) === "luz" ? "centro" : "toma")) {
+          throw new Error("Elegí un circuito compatible con el tipo de boca.");
+        }
+        const ids = new Set(layout.bocas.map((b) => b.id));
+        let numero = 1;
+        while (ids.has(`${circuitoId}-b${String(numero).padStart(2, "0")}`)) numero++;
+        const id = `${circuitoId}-b${String(numero).padStart(2, "0")}`;
+        const boca = posicionarBoca({
+          id, circuitoId, tipo, ambienteId, posicion: [0, ALTURA_TOMA, 0],
+          normal: tipo === "centro" ? [0, -1, 0] : [0, 0, 1],
+        }, ambiente, x, z);
+        return { ...layout, bocas: [...layout.bocas, boca] };
+      }),
+      adoptarSuperficieDibujada: () => {
+        const cfg = get().cfg;
+        if (!tieneRecorridosManuales(cfg) && cfg.layout3d?.modo === "editado") {
+          const superficie_m2 = superficieDibujada(cfg.layout3d.ambientes);
+          commit({ ...cfg, superficie_m2 });
+        }
       },
       setVista: (vista) => set((s) => ({ ui: { ...s.ui, vista } })),
       setUi3d: (patch) => set((s) => ({ ui3d: { ...s.ui3d, ...(typeof patch === "function" ? patch(s.ui3d) : patch) } })),
@@ -239,7 +280,10 @@ export function circuitoBase(s: Pick<SimState, "cfg" | "base">, ci: number): Cir
 /* ¿El circuito difiere de como estaba en el proyecto? */
 export function circuitoModificado(s: Pick<SimState, "cfg" | "base">, ci: number): boolean {
   const orig = circuitoBase(s, ci);
-  return !!orig && JSON.stringify(orig) !== JSON.stringify(s.cfg.circuitos[ci]);
+  if (!orig) return false;
+  const actual = s.cfg.circuitos[ci];
+  const comparable = s.cfg.layout3d?.modo === "editado" ? { ...orig, bocas: actual.bocas } : orig;
+  return JSON.stringify(comparable) !== JSON.stringify(actual);
 }
 
 export const simStore = crearSimStore();

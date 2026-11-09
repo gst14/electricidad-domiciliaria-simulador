@@ -9,6 +9,15 @@ export default function JsonEditor({ cfg, actions }) {
 
   const apply = (txt) => setErr(actions.applyText(txt) ?? "");
   const copy = () => navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  const descargar = () => {
+    const archivo = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(archivo);
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = "instalacion.json";
+    enlace.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const onFile = (e) => {
     const f = e.target.files[0];
     if (!f) return;
@@ -27,6 +36,7 @@ export default function JsonEditor({ cfg, actions }) {
         <div className="row">
           <button onClick={() => apply(text)}>Aplicar cambios</button>
           <button onClick={copy}>{copied ? "Copiado" : "Copiar JSON"}</button>
+          <button onClick={descargar}>Descargar proyecto</button>
           <label className="row" style={{ gap: 6, fontSize: 13, cursor: "pointer" }}>
             <input type="file" accept=".json,application/json" style={{ maxWidth: 190, fontSize: 12 }} onChange={onFile} />
           </label>

@@ -30,6 +30,7 @@ export interface Recorrido {
 }
 
 export interface Layout3D {
+  modo?: "editado";
   ambientes: Ambiente[];
   tablero: { posicion: Vec3; ambienteId: string };
   bocas: Boca[];

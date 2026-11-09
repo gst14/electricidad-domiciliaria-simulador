@@ -65,6 +65,7 @@ function Cargas({ k, ci }: { k: Circuito; ci: number }) {
 function FichaCircuito({ k, ci, avisos }: { k: Circuito; ci: number; avisos: [string, string][] }) {
   const actions = useSimStore((s) => s.actions);
   const seleccionado = useSimStore((s) => s.ui3d.seleccion?.circuitoId === k.id);
+  const planoEditado = useSimStore((s) => s.cfg.layout3d?.modo === "editado");
   const ref = useRef<HTMLDetailsElement>(null);
   const [abierto, setAbierto] = useState(ci === 0);
 
@@ -97,7 +98,9 @@ function FichaCircuito({ k, ci, avisos }: { k: Circuito; ci: number; avisos: [st
           <CampoSelect etiqueta="Curva" valor={k.curva} opciones={CURVAS} onChange={(v) => actions.setCircuito(ci, { curva: v })} />
           <CampoSelect etiqueta="Sección" valor={k.seccion_mm2} opciones={SECCIONES.some(([s]) => s === k.seccion_mm2) ? SECCIONES : [...SECCIONES, [k.seccion_mm2, `${fmt(k.seccion_mm2)} mm²`] as const]}
             onChange={(v) => actions.setCircuito(ci, { seccion_mm2: v })} />
-          <CampoNumero etiqueta="Bocas" valor={k.bocas} min={0} max={40} entero onCommit={(v) => actions.setCircuito(ci, { bocas: v })} />
+          {planoEditado
+            ? <span>Bocas: {k.bocas} · <a href="#plano">Ver plano</a></span>
+            : <CampoNumero etiqueta="Bocas" valor={k.bocas} min={0} max={40} entero onCommit={(v) => actions.setCircuito(ci, { bocas: v })} />}
         </div>
         {avisos.length > 0 && (
           <ul className="avisos">

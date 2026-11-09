@@ -71,6 +71,20 @@ export function posicionarBoca(boca: Boca, a: Ambiente, x: number, z: number): B
   return { ...boca, ambienteId: a.id, ...sobreMuro(a, muro, fracciones[muro], y) };
 }
 
+/* Conserva la pared y la proporción desde su inicio al cambiar las medidas. */
+export function redimensionarBoca(boca: Boca, anterior: Ambiente, nuevo: Ambiente): Boca {
+  const [x, y, z] = boca.posicion;
+  const fx = Math.max(0, Math.min(1, (x - anterior.x) / anterior.ancho));
+  const fz = Math.max(0, Math.min(1, (z - anterior.z) / anterior.largo));
+  if (boca.tipo === "centro") return posicionarBoca(boca, nuevo, fx * nuevo.ancho, fz * nuevo.largo);
+
+  const [nx, , nz] = boca.normal;
+  const muro = nz > 0 ? 0 : nx < 0 ? 1 : nz < 0 ? 2 : nx > 0 ? 3 : null;
+  if (muro === null) return posicionarBoca(boca, nuevo, fx * nuevo.ancho, fz * nuevo.largo);
+  const fracciones = [fx, fz, 1 - fx, 1 - fz];
+  return { ...boca, ...sobreMuro(nuevo, muro, fracciones[muro], Math.min(nuevo.alto, Math.max(0, y))) };
+}
+
 function alturaDedicada(k: Circuito): number {
   const n = k.cargas.map((a) => a.nombre).join(" ").toLowerCase();
   if (n.includes("aire")) return 2.0;
@@ -156,6 +170,33 @@ function bocasValidas(v: unknown, amb: Ambiente[]): Boca[] {
     && ids.has(b.ambienteId) && esVec(b.posicion) && esVec(b.normal));
 }
 
+export function sincronizarPlanoEditado(cfg: Config): Config {
+  const layout = cfg.layout3d;
+  if (layout?.modo !== "editado") return cfg;
+
+  const ambientes = ambientesValidos(layout.ambientes);
+  const idsAmbiente = new Set(ambientes?.map((a) => a.id));
+  if (!ambientes || idsAmbiente.size !== ambientes.length) {
+    throw new Error("El plano editado necesita ambientes válidos con identificadores únicos.");
+  }
+  if (!layout.tablero || !idsAmbiente.has(layout.tablero.ambienteId) || !esVec(layout.tablero.posicion)) {
+    throw new Error("El tablero del plano editado debe pertenecer a un ambiente válido.");
+  }
+
+  const bocas = bocasValidas(layout.bocas, ambientes);
+  const cantidades = new Map(cfg.circuitos.map((c) => [c.id, 0]));
+  if (!Array.isArray(layout.bocas) || bocas.length !== layout.bocas.length
+      || new Set(bocas.map((b) => b.id)).size !== bocas.length || bocas.some((b) => !cantidades.has(b.circuitoId))) {
+    throw new Error("El plano editado contiene bocas inválidas, repetidas o sin circuito.");
+  }
+  for (const boca of bocas) cantidades.set(boca.circuitoId, (cantidades.get(boca.circuitoId) ?? 0) + 1);
+
+  const requiereCambio = cfg.circuitos.some((c) => c.bocas !== cantidades.get(c.id));
+  return requiereCambio
+    ? { ...cfg, circuitos: cfg.circuitos.map((c) => ({ ...c, bocas: cantidades.get(c.id)! })) }
+    : cfg;
+}
+
 /*
  * Layout 3D por defecto a partir del JSON eléctrico. Determinístico: mismo JSON → mismo layout.
  * Conserva las bocas de cfg.layout3d (editadas por el usuario) y, si se pasa, las del layout previo;
@@ -178,7 +219,8 @@ export function generarLayout(cfg: Config, previo?: Layout3D): Layout3D {
     const fijadas = deUsuario.filter((b) => b.circuitoId === k.id);
     const existentes = fijadas.length ? fijadas : dePrevio.filter((b) => b.circuitoId === k.id);
     let propias: Boca[];
-    if (existentes.length === n) propias = existentes;
+    if (usuario.modo === "editado") propias = fijadas;
+    else if (existentes.length === n) propias = existentes;
     else {
       const conservadas = existentes.slice(0, n), usados = new Set(conservadas.map((b) => b.id));
       const nuevas = generarBocasCircuito(k, ambientes).slice(conservadas.length)
